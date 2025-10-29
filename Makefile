@@ -8,3 +8,6 @@ $(addprefix bin/,$(BINS)):
 	go build -buildmode=pie -trimpath -o $@ ./cmd/$(@F)
 
 $(BINS): $(addprefix bin/,$(BINS))
+
+docs:
+	go doc -http

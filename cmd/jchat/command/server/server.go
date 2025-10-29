@@ -18,8 +18,10 @@ var ServerCmd = &cobra.Command{
 	Use: "server",
 	Short: "Start a server",
 	Run: func(cmd *cobra.Command, args []string) {
+		s := fmt.Sprintf("Starting server on %s\n", bind)
+		io.WriteString(os.Stdout, s)
 		connection.StartServer(bind, func(c net.Conn) {
-			s := fmt.Sprintf("Connection from %s", c.RemoteAddr().String())
+			s := fmt.Sprintf("Connection from %s\n", c.RemoteAddr().String())
 			io.WriteString(os.Stdout, s)
 			c.Close()
 		})

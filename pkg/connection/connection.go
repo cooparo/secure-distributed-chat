@@ -16,3 +16,12 @@ func StartServer(bind string, handleConnection func(net.Conn)) (error) {
 		go handleConnection(conn)
 	}
 }
+
+func ConnectToServer(address string) (error) {
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		return err
+	}
+	conn.Close()
+	return nil
+}

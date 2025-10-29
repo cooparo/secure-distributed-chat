@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cooparo/secure-distributed-chat/cmd/jchat/command/client"
 	"github.com/cooparo/secure-distributed-chat/cmd/jchat/command/server"
 	"github.com/spf13/cobra"
 )
@@ -30,4 +31,5 @@ func Execute()  {
 
 func init() {
 	rootCmd.AddCommand(server.ServerCmd)
+	rootCmd.AddCommand(client.ClientCmd)
 }

@@ -13,6 +13,7 @@ func StartServer(bind string, handleConnection func(net.Conn)) (error) {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
+			// TODO: handle this more graceful instead of crashing
 			return err
 		}
 		go handleConnection(conn)

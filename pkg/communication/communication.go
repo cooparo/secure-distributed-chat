@@ -1,6 +1,7 @@
 package communication
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 )
@@ -9,14 +10,15 @@ import (
 func HandleConnection(c net.Conn) {
 	defer c.Close()
 
-	buf := make([]byte, 1) // 1KB buffer
-	n, err := c.Read(buf)
-	if err != nil {
-		fmt.Println("read error:", err)
-		return
-	}
-
-	fmt.Println("received:", string(buf[:n]))
-
+	handlePacket(c)
 }
 
+func handlePacket(c net.Conn) error {
+	mh := mainHeader{}
+	err := binary.Read(c, binary.BigEndian, &mh)
+	if err != nil {
+		return err
+	}
+	fmt.Println(mh)
+	return nil
+}

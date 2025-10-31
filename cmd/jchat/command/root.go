@@ -16,17 +16,21 @@ var (
 var rootCmd = &cobra.Command{
 	Use: "jchat",
 	Short: "Chat",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) (error) {
 		s := fmt.Sprintf("Connecting to %s\n", address)
 		io.WriteString(os.Stdout, s)
-		connection.ConnectToServer(address)
+		err := connection.ConnectToServer(address)
+		if err != nil {
+			return err
+		}
+		return nil
 	},
 }
 
 func Execute()  {
 	err := rootCmd.Execute()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		io.WriteString(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 }

@@ -1,4 +1,4 @@
-package server
+package command
 
 import (
 	"fmt"
@@ -14,9 +14,9 @@ var (
 	bind string
 )
 
-var ServerCmd = &cobra.Command{
-	Use: "server",
-	Short: "Start a server",
+var rootCmd = &cobra.Command{
+	Use: "jbackserver",
+	Short: "Background server for jchat",
 	Run: func(cmd *cobra.Command, args []string) {
 		s := fmt.Sprintf("Starting server on %s\n", bind)
 		io.WriteString(os.Stdout, s)
@@ -28,6 +28,15 @@ var ServerCmd = &cobra.Command{
 	},
 }
 
-func init()  {
-	ServerCmd.Flags().StringVarP(&bind, "bind", "b", ":1337", "Address to listn on")
+func Execute()  {
+	err := rootCmd.Execute()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
+
+func init() {
+	rootCmd.Flags().StringVarP(&bind, "bind", "b", ":1337", "Address to listens on")
+}
+

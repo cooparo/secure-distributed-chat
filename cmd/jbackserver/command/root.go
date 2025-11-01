@@ -17,17 +17,21 @@ var (
 var rootCmd = &cobra.Command{
 	Use: "jbackserver",
 	Short: "Background server for jchat",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) (error) {
 		s := fmt.Sprintf("Starting server on %s\n", bind)
 		io.WriteString(os.Stdout, s)
-		connection.StartServer(bind, communication.HandleConnection)
+		err := connection.StartServer(bind, communication.HandleConnection)
+		if err != nil {
+			return err
+		}
+		return nil
 	},
 }
 
 func Execute()  {
 	err := rootCmd.Execute()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		io.WriteString(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 }

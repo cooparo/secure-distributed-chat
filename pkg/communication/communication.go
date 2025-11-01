@@ -3,9 +3,9 @@ package communication
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
 	"net"
-	"os"
+
+	"github.com/cooparo/secure-distributed-chat/pkg/logger"
 )
 
 // Handle the communication on a given connection
@@ -14,8 +14,8 @@ func HandleConnection(c net.Conn) {
 
 	err := handlePacket(c)
 	if err != nil {
-		// Write the error to stdout and end the function
-		io.WriteString(os.Stdout, err.Error())
+		// Write the error to stderr and end the function
+		logger.Get().Error(err.Error())
 		return
 	}
 }
@@ -29,12 +29,12 @@ func handlePacket(c net.Conn) (error) {
 	}
 	name, ok := packetTypeName[header.PacketType]
 	if !ok {
-		return fmt.Errorf("Unknown PacketType with id %d\n", header.PacketType)
+		return fmt.Errorf("Unknown PacketType with id %d", header.PacketType)
 	}
 
 	// TODO: Check for the version?
-	s := fmt.Sprintf("Got packet with version %d and PacketType %s\n", header.Version, name)
-	io.WriteString(os.Stdout, s)
+	s := fmt.Sprintf("Got packet with version %d and PacketType %s", header.Version, name)
+	logger.Get().Debug(s)
 
 	switch header.PacketType {
 	case PacketTypeMessage:
@@ -43,7 +43,7 @@ func handlePacket(c net.Conn) (error) {
 			return nil
 		}
 	default:
-		return fmt.Errorf("No handle for PacketType %s\n", name)
+		return fmt.Errorf("No handle for PacketType %s", name)
 	}
 
 	return nil
@@ -55,8 +55,9 @@ func handleMessage(c net.Conn) (error) {
 	if err != nil {
 		return err
 	}
-	s := fmt.Sprintf("Got message with length %d\n", header.Length)
-	io.WriteString(os.Stdout, s)
+
+	s := fmt.Sprintf("Got message with length %d", header.Length)
+	logger.Get().Debug(s)
 
 	buf := make([]byte, header.Length)
 	n, err := c.Read(buf)
@@ -68,8 +69,8 @@ func handleMessage(c net.Conn) (error) {
 			n, header.Length)
 	}
 
-	s = fmt.Sprintf("Message contents:\n%s\n", string(buf))
-	io.WriteString(os.Stdout, s)
+	s = fmt.Sprintf("Message contents: %s", string(buf))
+	logger.Get().Debug(s)
 
 	return nil
 }

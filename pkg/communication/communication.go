@@ -34,7 +34,7 @@ func handlePacket(c net.Conn) (error) {
 	}
 
 	// TODO: Check for the version?
-	s := fmt.Sprintf("Got packet with version %d and PacketType %s", header.Version, name)
+	s := fmt.Sprintf("Got packet with version %d and PacketType %s (%#x)", header.Version, name, header.PacketType)
 	logger.Get().Debug(s)
 
 	switch header.PacketType {
@@ -82,7 +82,7 @@ func handleMessage(c net.Conn) (error) {
 		return err
 	}
 
-	s = fmt.Sprintf("Got ephemeral ECDH key: %x", ephemeralKey.Bytes())
+	s = fmt.Sprintf("Got ephemeral ECDH key: %#x", ephemeralKey.Bytes())
 	logger.Get().Debug(s)
 
 	if header.AdditionalLength > 0 {
@@ -99,7 +99,7 @@ func handleMessage(c net.Conn) (error) {
 		return err
 	}
 
-	s = fmt.Sprintf("Got nonce: %x", nonce)
+	s = fmt.Sprintf("Got nonce: %#x", nonce)
 	logger.Get().Debug(s)
 
 	encryptedData := make([]byte, header.DataLength)
@@ -108,7 +108,7 @@ func handleMessage(c net.Conn) (error) {
 		return err
 	}
 
-	s = fmt.Sprintf("Got encrypted data: %x", encryptedData)
+	s = fmt.Sprintf("Got encrypted data: %#x", encryptedData)
 	logger.Get().Debug(s)
 
 	return nil

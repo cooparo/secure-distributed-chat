@@ -90,6 +90,7 @@ func handleMessage(c net.Conn) (error) {
 		_, err = c.Read(additionalData)
 
 		s = fmt.Sprintf("Got additional associated data: %s", additionalData)
+		logger.Get().Debug(s)
 	}
 
 	nonce := make([]byte, 12)

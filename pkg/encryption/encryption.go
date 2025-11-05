@@ -1,0 +1,48 @@
+package encryption
+
+import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"io"
+)
+
+func AEADEncrypt(key, plaintext, associatedData []byte) ([]byte, []byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	nonce := make([]byte, aesgcm.NonceSize())
+	_, err = io.ReadFull(rand.Reader, nonce)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ciphertext := aesgcm.Seal(nil, nonce, plaintext, associatedData)
+	return nonce, ciphertext, nil
+}
+
+func AEADDecrypt(key, nonce, ciphertext, associatedData []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, associatedData)
+	if err != nil {
+		return nil, err
+	}
+
+	return plaintext, nil
+}

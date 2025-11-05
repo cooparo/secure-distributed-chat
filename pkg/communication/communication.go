@@ -1,6 +1,7 @@
 package communication
 
 import (
+	"crypto/ecdh"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -56,21 +57,46 @@ func handleMessage(c net.Conn) (error) {
 		return err
 	}
 
-	s := fmt.Sprintf("Got message with length %d", header.Length)
+	s := fmt.Sprintf("The flags are %d", header.Flags)
 	logger.Get().Debug(s)
 
-	buf := make([]byte, header.Length)
-	n, err := c.Read(buf)
+	s = fmt.Sprintf("There are %d bytes of additional associated data", header.AdditionalLength)
+	logger.Get().Debug(s)
+
+	s = fmt.Sprintf("There are %d bytes of encrypted data", header.DataLength)
+	logger.Get().Debug(s)
+
+	s = fmt.Sprintf("There was %d messages in the previous chain", header.PrevChainCount)
+	logger.Get().Debug(s)
+
+	s = fmt.Sprintf("There is %d messages in this chain", header.ChainCount)
+	logger.Get().Debug(s)
+
+	ephemeralKeyBytes := make([]byte, 32)
+	_, err = c.Read(ephemeralKeyBytes)
 	if err != nil {
 		return err
 	}
-	if n != int(header.Length) {
-		return fmt.Errorf("Mismatch between reported message length, and actually read length %d != %d",
-			n, header.Length)
+	ephemeralKey, err := ecdh.X25519().NewPublicKey(ephemeralKeyBytes)
+	if err != nil {
+		return err
 	}
 
-	s = fmt.Sprintf("Message contents: %s", string(buf))
+	s = fmt.Sprintf("Got ephemeral ECDH key: %x", ephemeralKey.Bytes())
 	logger.Get().Debug(s)
+
+	nonce := make([]byte, 12)
+	_, err = c.Read(nonce)
+
+	s = fmt.Sprintf("Got nonce: %x", nonce)
+	logger.Get().Debug(s)
+
+	encryptedData := make([]byte, header.DataLength)
+
+	s = fmt.Sprintf("Got encrypted data: %x", encryptedData)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

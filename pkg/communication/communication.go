@@ -94,16 +94,21 @@ func handleMessage(c net.Conn) (error) {
 
 	nonce := make([]byte, 12)
 	_, err = c.Read(nonce)
+	if err != nil {
+		return err
+	}
 
 	s = fmt.Sprintf("Got nonce: %x", nonce)
 	logger.Get().Debug(s)
 
 	encryptedData := make([]byte, header.DataLength)
-
-	s = fmt.Sprintf("Got encrypted data: %x", encryptedData)
+	_, err = c.Read(encryptedData)
 	if err != nil {
 		return err
 	}
+
+	s = fmt.Sprintf("Got encrypted data: %x", encryptedData)
+	logger.Get().Debug(s)
 
 	return nil
 }

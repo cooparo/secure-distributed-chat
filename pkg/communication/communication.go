@@ -85,6 +85,13 @@ func handleMessage(c net.Conn) (error) {
 	s = fmt.Sprintf("Got ephemeral ECDH key: %x", ephemeralKey.Bytes())
 	logger.Get().Debug(s)
 
+	if header.AdditionalLength > 0 {
+		additionalData := make([]byte, header.AdditionalLength)
+		_, err = c.Read(additionalData)
+
+		s = fmt.Sprintf("Got additional associated data: %s", additionalData)
+	}
+
 	nonce := make([]byte, 12)
 	_, err = c.Read(nonce)
 

@@ -1,29 +1,46 @@
 package kdfchain
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
 
 	"golang.org/x/crypto/hkdf"
 )
 
-type KDFChain struct {
-	KDFKey []byte
-	Salt []byte
+type RootKDFChain struct {
+	RootKey []byte
 	Info []byte
 }
 
-func (c *KDFChain) Step() ([]byte, error) {
-	kdf := hkdf.New(sha256.New, c.KDFKey, c.Salt, c.Info)
-	newKDFKey := make([]byte, 32)
-	_, err := kdf.Read(newKDFKey)
+func (c *RootKDFChain) Step(dh []byte) ([]byte, error) {
+	kdf := hkdf.New(sha256.New, dh, c.RootKey, c.Info)
+	newRootKey := make([]byte, 32)
+	_, err := kdf.Read(newRootKey)
 	if err != nil {
 		return nil, err
 	}
-	outputKey := make([]byte, 32)
-	_, err = kdf.Read(outputKey)
+	chainKey := make([]byte, 32)
+	_, err = kdf.Read(chainKey)
+	c.RootKey = newRootKey
+	return chainKey, err
+}
+
+type MessageKDFChain struct{
+	ChainKey []byte
+}
+
+func (c *MessageKDFChain) Step() ([]byte, error) {
+	kdf := hmac.New(sha256.New, c.ChainKey)
+	_, err := kdf.Write([]byte{0x01})
 	if err != nil {
 		return nil, err
 	}
-	c.KDFKey = newKDFKey
-	return outputKey, nil
+	messageKey := kdf.Sum(nil)
+	kdf.Reset()
+	_, err = kdf.Write([]byte{0x02})
+	if err != nil {
+		return nil, err
+	}
+	c.ChainKey = kdf.Sum(nil)
+	return messageKey, nil
 }

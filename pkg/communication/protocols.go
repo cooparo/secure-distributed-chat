@@ -17,5 +17,9 @@ type mainHeader struct {
 }
 
 type messageHeader struct {
-	Length uint16
+	Flags uint8
+	AdditionalLength uint8
+	DataLength uint16
+	PrevChainCount uint8
+	ChainCount uint8
 }

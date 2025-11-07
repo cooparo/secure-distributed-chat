@@ -25,22 +25,25 @@ func (c *RootKDFChain) Step(dh []byte) ([]byte, error) {
 	return chainKey, err
 }
 
-type MessageKDFChain struct{
+type MsgKDFChain struct{
 	ChainKey []byte
+	MsgCount int8
+	PrevMsgCount int8
 }
 
-func (c *MessageKDFChain) Step() ([]byte, error) {
+func (c *MsgKDFChain) Step() ([]byte, error) {
 	kdf := hmac.New(sha256.New, c.ChainKey)
 	_, err := kdf.Write([]byte{0x01})
 	if err != nil {
 		return nil, err
 	}
-	messageKey := kdf.Sum(nil)
+	msgKey := kdf.Sum(nil)
 	kdf.Reset()
 	_, err = kdf.Write([]byte{0x02})
 	if err != nil {
 		return nil, err
 	}
 	c.ChainKey = kdf.Sum(nil)
-	return messageKey, nil
+	c.MsgCount++
+	return msgKey, nil
 }

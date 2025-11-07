@@ -3,7 +3,9 @@ package doubleratchet
 import (
 	"crypto/ecdh"
 	"crypto/rand"
+	"fmt"
 
+	"github.com/cooparo/secure-distributed-chat/pkg/encryption"
 	"github.com/cooparo/secure-distributed-chat/pkg/kdfchain"
 )
 
@@ -11,8 +13,8 @@ type DoubleRatchet struct {
 	OurKey *ecdh.PrivateKey
 	TheirKey *ecdh.PublicKey
 	RootChain *kdfchain.RootKDFChain
-	SendingChain *kdfchain.MessageKDFChain
-	ReceiveChain *kdfchain.MessageKDFChain
+	SendChain *kdfchain.MsgKDFChain
+	RecvChain *kdfchain.MsgKDFChain
 }
 
 // Make new DoubleRatchet
@@ -34,59 +36,110 @@ func New(sharedSecret []byte, theirKey *ecdh.PublicKey) (*DoubleRatchet, error) 
 		OurKey: ourKey,
 		TheirKey: theirKey,
 		RootChain: &rootChain,
-		SendingChain: nil,
-		ReceiveChain: nil,
+		SendChain: nil,
+		RecvChain: nil,
 	}
 
 	// If we have their public key we can step
 	// the DH ratchet to get the sending chain
 	if theirKey != nil {
-		dh, err := ourKey.ECDH(theirKey)
+		sendChainDH, err := ourKey.ECDH(theirKey)
 		if err != nil {
 			return nil, err
 		}
-		sendingChainKey, err := rootChain.Step(dh)
+		sendChainKey, err := rootChain.Step(sendChainDH)
 		if err != nil {
 			return nil, err
 		}
 
-		sendingChain := kdfchain.MessageKDFChain{
-			ChainKey: sendingChainKey,
+		sendChain := kdfchain.MsgKDFChain{
+			ChainKey: sendChainKey,
+			MsgCount: 0,
+			PrevMsgCount: 0,
 		}
 
-		ratchet.SendingChain = &sendingChain
+		ratchet.SendChain = &sendChain
 	}
 
 	return &ratchet, nil
 }
 
 // Call when we receive a new ephemeral key
-// or the receive chain is nil (aka not initialized)
-func (r *DoubleRatchet) Receive(theirKey *ecdh.PublicKey) (error) {
-	r.TheirKey = theirKey
-	receiveChaindh, err := r.OurKey.ECDH(theirKey)
+func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) (error) {
+	recvChainDH, err := r.OurKey.ECDH(theirKey)
 	if err != nil {
 		return err
 	}
 
-	receiveChainKey, err := r.RootChain.Step(receiveChaindh)
-	receiveChain := kdfchain.MessageKDFChain{
-		ChainKey: receiveChainKey,
+	var recvPrevMsgCount int8 = 0
+	if r.RecvChain != nil {
+		recvPrevMsgCount = r.RecvChain.MsgCount
 	}
-	r.ReceiveChain = &receiveChain
+	recvChainKey, err := r.RootChain.Step(recvChainDH)
+	recvChain := kdfchain.MsgKDFChain{
+		ChainKey: recvChainKey,
+		MsgCount: 0,
+		PrevMsgCount: recvPrevMsgCount,
+	}
 
 	ourKey, err := ecdh.X25519().GenerateKey(rand.Reader)
-	r.OurKey = ourKey
-	sendingChaindh, err := ourKey.ECDH(theirKey)
+	sendChainDH, err := ourKey.ECDH(theirKey)
 	if err != nil {
 		return err
 	}
 
-	sendingChainKey, err := r.RootChain.Step(sendingChaindh)
-	sendingChain := kdfchain.MessageKDFChain{
-		ChainKey: sendingChainKey,
+	var sendPrevMsgCount int8 = 0
+	if r.SendChain != nil {
+		sendPrevMsgCount = r.SendChain.MsgCount
 	}
-	r.SendingChain = &sendingChain
+	sendChainKey, err := r.RootChain.Step(sendChainDH)
+	sendChain := kdfchain.MsgKDFChain{
+		ChainKey: sendChainKey,
+		MsgCount: 0,
+		PrevMsgCount: sendPrevMsgCount,
+	}
+
+	r.TheirKey = theirKey
+	r.OurKey = ourKey
+	r.RecvChain = &recvChain
+	r.SendChain = &sendChain
 
 	return nil
+}
+
+func (r *DoubleRatchet) Encrypt(plaintext, associatedData []byte) ([]byte, []byte, error) {
+	if r.SendChain == nil {
+		return nil, nil, fmt.Errorf("Sending chain is initialized, need to receive first")
+	}
+
+	key, err := r.SendChain.Step()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	nonce, ciphertext, err := encryption.AEADEncrypt(key, plaintext, associatedData)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return nonce, ciphertext, nil
+}
+
+func (r *DoubleRatchet) Decrypt(theirKey *ecdh.PublicKey, nonce, ciphertext, associatedData []byte) ([]byte, error) {
+	err := r.Update(theirKey)
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := r.RecvChain.Step()
+	if err != nil {
+		return nil, err
+	}
+
+	plaintext, err := encryption.AEADDecrypt(key, nonce, ciphertext, associatedData)
+	if err != nil {
+		return nil, err
+	}
+
+	return plaintext, nil
 }

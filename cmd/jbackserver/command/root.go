@@ -3,17 +3,18 @@ package command
 import (
 	"fmt"
 	"io"
+	"net"
 	"os"
 
-	"github.com/cooparo/secure-distributed-chat/pkg/communication"
-	"github.com/cooparo/secure-distributed-chat/pkg/connection"
 	"github.com/cooparo/secure-distributed-chat/pkg/logger"
+	"github.com/cooparo/secure-distributed-chat/pkg/packets"
 	"github.com/spf13/cobra"
 )
 
 var (
 	verbose bool
-	bind string
+	addr string
+	port uint
 )
 
 var rootCmd = &cobra.Command{
@@ -23,13 +24,22 @@ var rootCmd = &cobra.Command{
 		logger.Init(verbose)
 	},
 	RunE: func(cmd *cobra.Command, args []string) (error) {
-		s := fmt.Sprintf("Starting server on %s", bind)
+		bindAddr := fmt.Sprintf("%s:%d", addr, port)
+		s := fmt.Sprintf("Starting server on %s", bindAddr)
 		logger.Get().Info(s)
-		err := connection.StartServer(bind, communication.HandleConnection)
+		ln, err := net.Listen("tcp", bindAddr)
 		if err != nil {
 			return err
 		}
-		return nil
+
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				// TODO: handle this more graceful instead of crashing
+				return err
+			}
+			go packets.HandleConnection(conn)
+		}
 	},
 }
 
@@ -43,6 +53,7 @@ func Execute()  {
 
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging")
-	rootCmd.Flags().StringVarP(&bind, "bind", "b", ":1337", "Address to listens on")
+	rootCmd.Flags().StringVarP(&addr, "address", "a", "0.0.0.0", "Address to listen on")
+	rootCmd.Flags().UintVarP(&port, "port", "p", 1337, "Port to listen on")
 }
 

@@ -1,11 +1,9 @@
 package command
 
 import (
-	"fmt"
 	"io"
 	"os"
 
-	"github.com/cooparo/secure-distributed-chat/pkg/connection"
 	"github.com/cooparo/secure-distributed-chat/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -22,13 +20,7 @@ var rootCmd = &cobra.Command{
 		logger.Init(verbose)
 	},
 	RunE: func(cmd *cobra.Command, args []string) (error) {
-		s := fmt.Sprintf("Connecting to %s", address)
-		io.WriteString(os.Stdout, s)
-		err := connection.ConnectToServer(address)
-		if err != nil {
-			return err
-		}
-		return nil
+		return nil // TODO: make it communicate with IPC
 	},
 }
 

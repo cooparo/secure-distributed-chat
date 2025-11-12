@@ -37,7 +37,7 @@ func HandleConnection(c net.Conn) {
 }
 
 // Handle a incoming packet
-func handlePacket(c net.Conn) (error) {
+func handlePacket(c net.Conn) error {
 	header := mainHeader{}
 	err := binary.Read(c, binary.BigEndian, &header)
 	if err != nil {

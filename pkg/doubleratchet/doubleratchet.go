@@ -10,8 +10,8 @@ import (
 )
 
 type DoubleRatchet struct {
-	OurKey *ecdh.PrivateKey
-	TheirKey *ecdh.PublicKey
+	OurKey    *ecdh.PrivateKey
+	TheirKey  *ecdh.PublicKey
 	RootChain *kdfchain.RootKDFChain
 	SendChain *kdfchain.MsgKDFChain
 	RecvChain *kdfchain.MsgKDFChain
@@ -29,12 +29,12 @@ func New(sharedSecret []byte, theirKey *ecdh.PublicKey) (*DoubleRatchet, error) 
 
 	rootChain := kdfchain.RootKDFChain{
 		RootKey: sharedSecret,
-		Info: []byte("Root chain for jchat"),
+		Info:    []byte("Root chain for jchat"),
 	}
 
 	ratchet := DoubleRatchet{
-		OurKey: ourKey,
-		TheirKey: theirKey,
+		OurKey:    ourKey,
+		TheirKey:  theirKey,
 		RootChain: &rootChain,
 		SendChain: nil,
 		RecvChain: nil,
@@ -53,8 +53,8 @@ func New(sharedSecret []byte, theirKey *ecdh.PublicKey) (*DoubleRatchet, error) 
 		}
 
 		sendChain := kdfchain.MsgKDFChain{
-			ChainKey: sendChainKey,
-			MsgCount: 0,
+			ChainKey:     sendChainKey,
+			MsgCount:     0,
 			PrevMsgCount: 0,
 		}
 
@@ -65,7 +65,7 @@ func New(sharedSecret []byte, theirKey *ecdh.PublicKey) (*DoubleRatchet, error) 
 }
 
 // Call when we receive a new ephemeral key
-func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) (error) {
+func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) error {
 	recvChainDH, err := r.OurKey.ECDH(theirKey)
 	if err != nil {
 		return err
@@ -77,8 +77,8 @@ func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) (error) {
 	}
 	recvChainKey, err := r.RootChain.Step(recvChainDH)
 	recvChain := kdfchain.MsgKDFChain{
-		ChainKey: recvChainKey,
-		MsgCount: 0,
+		ChainKey:     recvChainKey,
+		MsgCount:     0,
 		PrevMsgCount: recvPrevMsgCount,
 	}
 
@@ -94,8 +94,8 @@ func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) (error) {
 	}
 	sendChainKey, err := r.RootChain.Step(sendChainDH)
 	sendChain := kdfchain.MsgKDFChain{
-		ChainKey: sendChainKey,
-		MsgCount: 0,
+		ChainKey:     sendChainKey,
+		MsgCount:     0,
 		PrevMsgCount: sendPrevMsgCount,
 	}
 

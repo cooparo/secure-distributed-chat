@@ -10,8 +10,6 @@ import (
 )
 
 type messageHeader struct {
-	Flags uint8
-	AdditionalLength uint8
 	DataLength uint16
 	PrevChainCount uint8
 	ChainCount uint8
@@ -24,13 +22,7 @@ func HandleMessage(c net.Conn) (error) {
 		return err
 	}
 
-	s := fmt.Sprintf("The flags are %d", header.Flags)
-	logger.Get().Debug(s)
-
-	s = fmt.Sprintf("There are %d bytes of additional associated data", header.AdditionalLength)
-	logger.Get().Debug(s)
-
-	s = fmt.Sprintf("There are %d bytes of encrypted data", header.DataLength)
+	s := fmt.Sprintf("There are %d bytes of encrypted data", header.DataLength)
 	logger.Get().Debug(s)
 
 	s = fmt.Sprintf("There was %d messages in the previous chain", header.PrevChainCount)
@@ -51,14 +43,6 @@ func HandleMessage(c net.Conn) (error) {
 
 	s = fmt.Sprintf("Got ephemeral ECDH key: %#x", ephemeralKey.Bytes())
 	logger.Get().Debug(s)
-
-	if header.AdditionalLength > 0 {
-		additionalData := make([]byte, header.AdditionalLength)
-		_, err = c.Read(additionalData)
-
-		s = fmt.Sprintf("Got additional associated data: %s", additionalData)
-		logger.Get().Debug(s)
-	}
 
 	nonce := make([]byte, 12)
 	_, err = c.Read(nonce)

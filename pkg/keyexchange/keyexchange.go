@@ -10,3 +10,11 @@ type exchangeRequest struct {
 	EphemeralKey    [32]byte
 	Signature       [64]byte
 }
+
+type exchangeResponse struct {
+	RecvIDAddr   identity.IdentityAddress
+	SendIDAddr   identity.IdentityAddress
+	EphemeralKey [32]byte
+	RatchetKey   [32]byte
+	Signature    [64]byte
+}

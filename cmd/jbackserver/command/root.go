@@ -13,17 +13,17 @@ import (
 
 var (
 	verbose bool
-	addr string
-	port uint
+	addr    string
+	port    uint
 )
 
 var rootCmd = &cobra.Command{
-	Use: "jbackserver",
+	Use:   "jbackserver",
 	Short: "Background server for jchat",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		logger.Init(verbose)
 	},
-	RunE: func(cmd *cobra.Command, args []string) (error) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		bindAddr := fmt.Sprintf("%s:%d", addr, port)
 		s := fmt.Sprintf("Starting server on %s", bindAddr)
 		logger.Get().Info(s)
@@ -43,7 +43,7 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func Execute()  {
+func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
 		io.WriteString(os.Stderr, err.Error())
@@ -56,4 +56,3 @@ func init() {
 	rootCmd.Flags().StringVarP(&addr, "address", "a", "0.0.0.0", "Address to listen on")
 	rootCmd.Flags().UintVarP(&port, "port", "p", 1337, "Port to listen on")
 }
-

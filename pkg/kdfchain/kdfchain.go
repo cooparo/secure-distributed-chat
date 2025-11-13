@@ -9,7 +9,7 @@ import (
 
 type RootKDFChain struct {
 	RootKey []byte
-	Info []byte
+	Info    []byte
 }
 
 func (c *RootKDFChain) Step(dh []byte) ([]byte, error) {
@@ -25,9 +25,9 @@ func (c *RootKDFChain) Step(dh []byte) ([]byte, error) {
 	return chainKey, err
 }
 
-type MsgKDFChain struct{
-	ChainKey []byte
-	MsgCount int8
+type MsgKDFChain struct {
+	ChainKey     []byte
+	MsgCount     int8
 	PrevMsgCount int8
 }
 

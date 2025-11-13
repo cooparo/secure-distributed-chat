@@ -10,12 +10,12 @@ import (
 )
 
 type messageHeader struct {
-	DataLength uint16
+	DataLength     uint16
 	PrevChainCount uint8
-	ChainCount uint8
+	ChainCount     uint8
 }
 
-func HandleMessage(c net.Conn) (error) {
+func HandleMessage(c net.Conn) error {
 	header := messageHeader{}
 	err := binary.Read(c, binary.BigEndian, &header)
 	if err != nil {

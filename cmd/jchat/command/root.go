@@ -14,17 +14,17 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use: "jchat",
+	Use:   "jchat",
 	Short: "Chat",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		logger.Init(verbose)
 	},
-	RunE: func(cmd *cobra.Command, args []string) (error) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		return nil // TODO: make it communicate with IPC
 	},
 }
 
-func Execute()  {
+func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
 		io.WriteString(os.Stderr, err.Error())

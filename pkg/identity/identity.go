@@ -45,14 +45,14 @@ func GenerateIdentity() (IdentityAddress, *KeyBundle, error) {
 
 	keyBundle := KeyBundle{
 		SigningKey: &signingKey,
-		DHKey: dhKey,
-		Signature: [64]byte(keySignature),
+		DHKey:      dhKey,
+		Signature:  [64]byte(keySignature),
 	}
 
 	return [20]byte(address), &keyBundle, nil
 }
 
-func (k *KeyBundle) Public() ([]byte) {
+func (k *KeyBundle) Public() []byte {
 	pubBundle := append(k.SigningKey.Public().([]byte), k.DHKey.PublicKey().Bytes()...)
 	pubBundle = append(pubBundle, k.Signature[:]...)
 	return pubBundle

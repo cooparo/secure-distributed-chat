@@ -14,24 +14,24 @@ func TestHeaderSerialization(t *testing.T) {
 
 	expectedBytes := []byte{0x01, 0x00, 0x01, 0x00}
 
-	// Test ToBytes
-	data, err := h.ToBytes()
+	// Test MarshalBinary
+	data, err := h.MarshalBinary()
 	if err != nil {
-		t.Fatalf("ToBytes() returned an unexpected error: %v", err)
+		t.Fatalf("MarshalBinary() returned an unexpected error: %v", err)
 	}
 
 	if !bytes.Equal(data, expectedBytes) {
-		t.Errorf("ToBytes() failed: got %x, want %x", data, expectedBytes)
+		t.Errorf("MarshalBinary() failed: got %x, want %x", data, expectedBytes)
 	}
 
-	// Test FromBytes
+	// Test UnmarshalBinary
 	hNew := &Header{}
-	if err := hNew.FromBytes(data); err != nil {
-		t.Fatalf("FromBytes() returned an unexpected error: %v", err)
+	if err := hNew.UnmarshalBinary(data); err != nil {
+		t.Fatalf("UnmarshalBinary() returned an unexpected error: %v", err)
 	}
 
 	if *h != *hNew {
-		t.Errorf("FromBytes() failed: got %+v, want %+v", *hNew, *h)
+		t.Errorf("UnmarshalBinary() failed: got %+v, want %+v", *hNew, *h)
 	}
 }
 
@@ -44,24 +44,24 @@ func TestMsgPacketSerialization(t *testing.T) {
 	// content ("Hello") = 0x48656c6c6f
 	expectedBytes := []byte{0x00, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f}
 
-	// ToBytes
-	data, err := msgPkt.ToBytes()
+	// MarshalBinary
+	data, err := msgPkt.MarshalBinary()
 	if err != nil {
-		t.Fatalf("ToBytes() returned an unexpected error: %v", err)
+		t.Fatalf("MarshalBinary() returned an unexpected error: %v", err)
 	}
 
 	if !bytes.Equal(data, expectedBytes) {
-		t.Errorf("ToBytes() failed: got %x, want %x", data, expectedBytes)
+		t.Errorf("MarshalBinary() failed: got %x, want %x", data, expectedBytes)
 	}
 
-	// FromBytes
+	// UnmarshalBinary
 	msgPktNew := &MsgPacket{}
-	if _, err := msgPktNew.FromBytes(data); err != nil {
-		t.Fatalf("FromBytes() returned an unexpected error: %v", err)
+	if _, err := msgPktNew.UnmarshalBinary(data); err != nil {
+		t.Fatalf("UnmarshalBinary() returned an unexpected error: %v", err)
 	}
 
 	if msgPkt.content != msgPktNew.content {
-		t.Errorf("FromBytes() failed: got content %q, want content %q", msgPktNew.content, msgPkt.content)
+		t.Errorf("UnmarshalBinary() failed: got content %q, want content %q", msgPktNew.content, msgPkt.content)
 	}
 }
 
@@ -73,9 +73,9 @@ func TestMsgPacketSerializationTooLarge(t *testing.T) {
 		Message(largeString),
 	}
 
-	_, err := msgPkt.ToBytes()
+	_, err := msgPkt.MarshalBinary()
 
 	if err == nil {
-		t.Error("ToBytes() did not return an error for a message that is too large")
+		t.Error("MarshalBinary() did not return an error for a message that is too large")
 	}
 }

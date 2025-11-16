@@ -12,11 +12,11 @@ const (
 )
 
 type Serializer interface {
-	ToBytes() ([]byte, error)
+	MarshalBinary() ([]byte, error)
 }
 
 type Deserializer interface {
-	FromBytes([]byte) error
+	UnmarshalBinary([]byte) error
 }
 
 type Header struct {
@@ -33,7 +33,7 @@ func NewHeader(cmdType Cmd) *Header {
 	}
 }
 
-func (h *Header) ToBytes() ([]byte, error) {
+func (h *Header) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, 4)
 
 	buf[0] = h.version
@@ -43,7 +43,7 @@ func (h *Header) ToBytes() ([]byte, error) {
 	return buf, nil
 }
 
-func (h *Header) FromBytes(b []byte) error {
+func (h *Header) UnmarshalBinary(b []byte) error {
 	h.version = uint8(b[0])
 	h.cmdType = Cmd(b[1])
 	h.cmdPayloadLenght = binary.BigEndian.Uint16(b[2:4])
@@ -53,11 +53,11 @@ func (h *Header) FromBytes(b []byte) error {
 
 type Message string
 
-func (m *Message) ToBytes() ([]byte, error) {
+func (m *Message) MarshalBinary() ([]byte, error) {
 	return []byte(*m), nil
 }
 
-func (m *Message) FromBytes(b []byte) error {
+func (m *Message) UnmarshalBinary(b []byte) error {
 	*m = Message(string(b))
 	return nil
 }
@@ -66,9 +66,9 @@ type MsgPacket struct {
 	content Message
 }
 
-func (m *MsgPacket) ToBytes() ([]byte, error) {
+func (m *MsgPacket) MarshalBinary() ([]byte, error) {
 	var (
-		contentBytes, err = m.content.ToBytes()
+		contentBytes, err = m.content.MarshalBinary()
 		contentLength     = uint32(len(contentBytes))
 	)
 
@@ -88,11 +88,11 @@ func (m *MsgPacket) ToBytes() ([]byte, error) {
 	return buf, nil
 }
 
-// FromBytes Returns how many bytes has read
-func (m *MsgPacket) FromBytes(b []byte) (uint16, error) {
+// UnmarshalBinary Returns how many bytes has read
+func (m *MsgPacket) UnmarshalBinary(b []byte) (uint16, error) {
 	// MsgPacket Length
 	n := binary.BigEndian.Uint16(b[:2]) + 2
 
-	m.content.FromBytes(b[2:n])
+	m.content.UnmarshalBinary(b[2:n])
 	return n, nil
 }

@@ -18,5 +18,9 @@
 !LICENSE
 !Makefile
 
+!sqlc.yml
+!schema.sql
+!query.sql
+
 # ...even if they are in subdirectories
 !*/

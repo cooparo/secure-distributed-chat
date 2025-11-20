@@ -51,3 +51,15 @@ func (q *Queries) GetIdentity(ctx context.Context, address string) (GetIdentityR
 	err := row.Scan(&i.Keybundle, &i.Netaddrbundletime, &i.Netaddrbundle)
 	return i, err
 }
+
+const getIdentityId = `-- name: GetIdentityId :one
+SELECT id FROM identity
+WHERE address = ? LIMIT 1
+`
+
+func (q *Queries) GetIdentityId(ctx context.Context, address string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getIdentityId, address)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}

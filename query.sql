@@ -8,3 +8,7 @@ INSERT INTO identity (
 -- name: GetIdentity :one
 SELECT keyBundle, netAddrBundleTime, netAddrBundle FROM identity
 WHERE address = ? LIMIT 1;
+
+-- name: GetIdentityId :one
+SELECT id FROM identity
+WHERE address = ? LIMIT 1;

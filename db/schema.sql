@@ -19,7 +19,15 @@ CREATE TABLE sessions (
 	recv_msg_count INTEGER,
 	recv_prev_msg_count INTEGER
 );
+CREATE TABLE messages (
+	id INTEGER PRIMARY KEY,
+	sender_id INTEGER NOT NULL REFERENCES identity(id) ON DELETE CASCADE,
+	receiver_id INTEGER NOT NULL REFERENCES identity(id) ON DELETE CASCADE,
+	timestamp INTEGER NOT NULL,
+	contents TEXT NOT NULL
+);
 -- Dbmate schema migrations
 INSERT INTO "schema_migrations" (version) VALUES
   ('20251120121130'),
-  ('20251120122409');
+  ('20251120122409'),
+  ('20251120130907');

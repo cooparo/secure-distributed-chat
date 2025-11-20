@@ -4,10 +4,28 @@
 
 package database
 
+import (
+	"database/sql"
+)
+
 type Identity struct {
 	ID                int64
 	Address           string
-	Keybundle         string
-	Netaddrbundletime int64
-	Netaddrbundle     string
+	KeyBundle         string
+	NetAddrBundleTime int64
+	NetAddrBundle     string
+}
+
+type Session struct {
+	ID                int64
+	IdentityID        int64
+	RootKey           string
+	OurEphemeralKey   string
+	TheirEphemeralKey string
+	SendChainKey      sql.NullString
+	SendMsgCount      sql.NullInt64
+	SendPrevMsgCount  sql.NullInt64
+	RecvChainKey      sql.NullString
+	RecvMsgCount      sql.NullInt64
+	RecvPrevMsgCount  sql.NullInt64
 }

@@ -12,12 +12,12 @@ CREATE TABLE sessions (
 	root_key TEXT NOT NULL,
 	our_ephemeral_key TEXT NOT NULL,
 	their_ephemeral_key TEXT NOT NULL,
-	send_chain_key TEXT,
-	send_msg_count INTEGER,
-	send_prev_msg_count INTEGER,
-	recv_chain_key TEXT,
-	recv_msg_count INTEGER,
-	recv_prev_msg_count INTEGER
+	send_chain_key TEXT NOT NULL,
+	send_msg_count INTEGER NOT NULL,
+	send_prev_msg_count INTEGER NOT NULL,
+	recv_chain_key TEXT NOT NULL,
+	recv_msg_count INTEGER NOT NULL,
+	recv_prev_msg_count INTEGER NOT NULL
 );
 CREATE TABLE messages (
 	id INTEGER PRIMARY KEY,

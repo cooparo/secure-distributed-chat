@@ -4,10 +4,6 @@
 
 package database
 
-import (
-	"database/sql"
-)
-
 type Identity struct {
 	ID                int64
 	Address           string
@@ -30,10 +26,10 @@ type Session struct {
 	RootKey           string
 	OurEphemeralKey   string
 	TheirEphemeralKey string
-	SendChainKey      sql.NullString
-	SendMsgCount      sql.NullInt64
-	SendPrevMsgCount  sql.NullInt64
-	RecvChainKey      sql.NullString
-	RecvMsgCount      sql.NullInt64
-	RecvPrevMsgCount  sql.NullInt64
+	SendChainKey      string
+	SendMsgCount      int64
+	SendPrevMsgCount  int64
+	RecvChainKey      string
+	RecvMsgCount      int64
+	RecvPrevMsgCount  int64
 }

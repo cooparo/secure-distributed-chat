@@ -62,6 +62,7 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// TODO: use the db format
 type MsgPacket struct {
 	content Message
 }

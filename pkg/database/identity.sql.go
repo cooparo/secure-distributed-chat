@@ -34,9 +34,19 @@ func (q *Queries) AddIdentity(ctx context.Context, arg AddIdentityParams) error 
 	return err
 }
 
+const deleteIdentity = `-- name: DeleteIdentity :exec
+DELETE FROM identity
+WHERE address = ?
+`
+
+func (q *Queries) DeleteIdentity(ctx context.Context, address string) error {
+	_, err := q.db.ExecContext(ctx, deleteIdentity, address)
+	return err
+}
+
 const getIdentity = `-- name: GetIdentity :one
 SELECT key_bundle, net_addr_bundle_time, net_addr_bundle FROM identity
-WHERE address = ? LIMIT 1
+WHERE address = ?
 `
 
 type GetIdentityRow struct {
@@ -54,7 +64,7 @@ func (q *Queries) GetIdentity(ctx context.Context, address string) (GetIdentityR
 
 const getIdentityId = `-- name: GetIdentityId :one
 SELECT id FROM identity
-WHERE address = ? LIMIT 1
+WHERE address = ?
 `
 
 func (q *Queries) GetIdentityId(ctx context.Context, address string) (int64, error) {
@@ -62,4 +72,21 @@ func (q *Queries) GetIdentityId(ctx context.Context, address string) (int64, err
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const updateIdentity = `-- name: UpdateIdentity :exec
+UPDATE identity
+SET net_addr_bundle_time = ?, net_addr_bundle = ?
+WHERE address = ?
+`
+
+type UpdateIdentityParams struct {
+	NetAddrBundleTime int64
+	NetAddrBundle     string
+	Address           string
+}
+
+func (q *Queries) UpdateIdentity(ctx context.Context, arg UpdateIdentityParams) error {
+	_, err := q.db.ExecContext(ctx, updateIdentity, arg.NetAddrBundleTime, arg.NetAddrBundle, arg.Address)
+	return err
 }

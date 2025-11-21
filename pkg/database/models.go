@@ -16,7 +16,7 @@ type Message struct {
 	ID         int64
 	SenderID   int64
 	ReceiverID int64
-	Timestamp  int64
+	Time       int64
 	Contents   string
 }
 

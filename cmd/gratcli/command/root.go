@@ -14,7 +14,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "jchat",
+	Use:   "gratcli",
 	Short: "Chat",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		logger.Init(verbose)

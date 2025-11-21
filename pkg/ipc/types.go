@@ -11,14 +11,6 @@ const (
 	maxMsgPktSize            = maxCmdPayloadSize - headerSize - 2 // cmdSize - headerSize - size of the uint16 msgPktLen
 )
 
-type Serializer interface {
-	MarshalBinary() ([]byte, error)
-}
-
-type Deserializer interface {
-	UnmarshalBinary([]byte) error
-}
-
 type Header struct {
 	version          uint8
 	cmdType          Cmd

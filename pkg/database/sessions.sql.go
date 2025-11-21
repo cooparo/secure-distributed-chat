@@ -9,6 +9,52 @@ import (
 	"context"
 )
 
+const addSession = `-- name: AddSession :exec
+INSERT INTO sessions(
+	identity_id,
+	root_key,
+	our_ephemeral_key,
+	their_ephemeral_key,
+	send_chain_key,
+	send_msg_count,
+	send_prev_msg_count,
+	recv_chain_key,
+	recv_msg_count,
+	recv_prev_msg_count
+)
+SELECT id, ?, ?, ?, ?, ?, ?, ?, ?, ?
+FROM identity WHERE address = ?
+`
+
+type AddSessionParams struct {
+	RootKey           string
+	OurEphemeralKey   string
+	TheirEphemeralKey string
+	SendChainKey      string
+	SendMsgCount      int64
+	SendPrevMsgCount  int64
+	RecvChainKey      string
+	RecvMsgCount      int64
+	RecvPrevMsgCount  int64
+	Address           string
+}
+
+func (q *Queries) AddSession(ctx context.Context, arg AddSessionParams) error {
+	_, err := q.db.ExecContext(ctx, addSession,
+		arg.RootKey,
+		arg.OurEphemeralKey,
+		arg.TheirEphemeralKey,
+		arg.SendChainKey,
+		arg.SendMsgCount,
+		arg.SendPrevMsgCount,
+		arg.RecvChainKey,
+		arg.RecvMsgCount,
+		arg.RecvPrevMsgCount,
+		arg.Address,
+	)
+	return err
+}
+
 const deleteSession = `-- name: DeleteSession :exec
 DELETE FROM sessions
 WHERE identity_id = (
@@ -66,24 +112,26 @@ func (q *Queries) GetSession(ctx context.Context, address string) (GetSessionRow
 	return i, err
 }
 
-const insertSession = `-- name: InsertSession :exec
-INSERT INTO sessions(
-	identity_id,
-	root_key,
-	our_ephemeral_key,
-	their_ephemeral_key,
-	send_chain_key,
-	send_msg_count,
-	send_prev_msg_count,
-	recv_chain_key,
-	recv_msg_count,
-	recv_prev_msg_count
+const updateSessionRatchet = `-- name: UpdateSessionRatchet :exec
+UPDATE sessions
+SET
+	root_key = ?,
+	our_ephemeral_key = ?,
+	their_ephemeral_key = ?,
+	send_chain_key = ?,
+	send_msg_count = ?,
+	send_prev_msg_count = ?,
+	recv_chain_key = ?,
+	recv_msg_count = ?,
+	recv_prev_msg_count = ?
+WHERE identity_id = (
+	SELECT id
+	FROM identity
+	WHERE address = ?
 )
-SELECT id, ?, ?, ?, ?, ?, ?, ?, ?, ?
-FROM identity WHERE address = ?
 `
 
-type InsertSessionParams struct {
+type UpdateSessionRatchetParams struct {
 	RootKey           string
 	OurEphemeralKey   string
 	TheirEphemeralKey string
@@ -96,8 +144,8 @@ type InsertSessionParams struct {
 	Address           string
 }
 
-func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) error {
-	_, err := q.db.ExecContext(ctx, insertSession,
+func (q *Queries) UpdateSessionRatchet(ctx context.Context, arg UpdateSessionRatchetParams) error {
+	_, err := q.db.ExecContext(ctx, updateSessionRatchet,
 		arg.RootKey,
 		arg.OurEphemeralKey,
 		arg.TheirEphemeralKey,
@@ -109,5 +157,47 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 		arg.RecvPrevMsgCount,
 		arg.Address,
 	)
+	return err
+}
+
+const updateSessionRecv = `-- name: UpdateSessionRecv :exec
+UPDATE sessions
+SET recv_chain_key = ?, recv_msg_count = ?
+WHERE identity_id = (
+	SELECT id
+	FROM identity
+	WHERE address = ?
+)
+`
+
+type UpdateSessionRecvParams struct {
+	RecvChainKey string
+	RecvMsgCount int64
+	Address      string
+}
+
+func (q *Queries) UpdateSessionRecv(ctx context.Context, arg UpdateSessionRecvParams) error {
+	_, err := q.db.ExecContext(ctx, updateSessionRecv, arg.RecvChainKey, arg.RecvMsgCount, arg.Address)
+	return err
+}
+
+const updateSessionSend = `-- name: UpdateSessionSend :exec
+UPDATE sessions
+SET send_chain_key = ?, send_msg_count = ?
+WHERE identity_id = (
+	SELECT id
+	FROM identity
+	WHERE address = ?
+)
+`
+
+type UpdateSessionSendParams struct {
+	SendChainKey string
+	SendMsgCount int64
+	Address      string
+}
+
+func (q *Queries) UpdateSessionSend(ctx context.Context, arg UpdateSessionSendParams) error {
+	_, err := q.db.ExecContext(ctx, updateSessionSend, arg.SendChainKey, arg.SendMsgCount, arg.Address)
 	return err
 }

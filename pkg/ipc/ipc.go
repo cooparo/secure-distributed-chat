@@ -14,7 +14,7 @@ import (
 func DefaultSocketPath() string {
 	dir := os.Getenv("XDG_RUNTIME_DIR")
 	if dir == "" {
-		return "/tmp/grat.sock"
+		dir = "/tmp"
 	}
 	return filepath.Join(dir, "grat.sock")
 }

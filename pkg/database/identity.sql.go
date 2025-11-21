@@ -45,7 +45,8 @@ func (q *Queries) DeleteIdentity(ctx context.Context, address string) error {
 }
 
 const getIdentity = `-- name: GetIdentity :one
-SELECT key_bundle, net_addr_bundle_time, net_addr_bundle FROM identity
+SELECT key_bundle, net_addr_bundle_time, net_addr_bundle
+FROM identity
 WHERE address = ?
 `
 
@@ -63,7 +64,8 @@ func (q *Queries) GetIdentity(ctx context.Context, address string) (GetIdentityR
 }
 
 const getIdentityId = `-- name: GetIdentityId :one
-SELECT id FROM identity
+SELECT id
+FROM identity
 WHERE address = ?
 `
 
@@ -72,6 +74,72 @@ func (q *Queries) GetIdentityId(ctx context.Context, address string) (int64, err
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const getRandomIdentities = `-- name: GetRandomIdentities :many
+SELECT address, key_bundle, net_addr_bundle_time, net_addr_bundle
+FROM identity
+ORDER BY RANDOM() LIMIT ?
+`
+
+type GetRandomIdentitiesRow struct {
+	Address           string
+	KeyBundle         string
+	NetAddrBundleTime int64
+	NetAddrBundle     string
+}
+
+func (q *Queries) GetRandomIdentities(ctx context.Context, limit int64) ([]GetRandomIdentitiesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRandomIdentities, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRandomIdentitiesRow
+	for rows.Next() {
+		var i GetRandomIdentitiesRow
+		if err := rows.Scan(
+			&i.Address,
+			&i.KeyBundle,
+			&i.NetAddrBundleTime,
+			&i.NetAddrBundle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRandomIdentity = `-- name: GetRandomIdentity :one
+SELECT address, key_bundle, net_addr_bundle_time, net_addr_bundle
+FROM identity
+ORDER BY RANDOM() LIMIT 1
+`
+
+type GetRandomIdentityRow struct {
+	Address           string
+	KeyBundle         string
+	NetAddrBundleTime int64
+	NetAddrBundle     string
+}
+
+func (q *Queries) GetRandomIdentity(ctx context.Context) (GetRandomIdentityRow, error) {
+	row := q.db.QueryRowContext(ctx, getRandomIdentity)
+	var i GetRandomIdentityRow
+	err := row.Scan(
+		&i.Address,
+		&i.KeyBundle,
+		&i.NetAddrBundleTime,
+		&i.NetAddrBundle,
+	)
+	return i, err
 }
 
 const updateIdentity = `-- name: UpdateIdentity :exec

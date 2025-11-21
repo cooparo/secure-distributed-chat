@@ -18,8 +18,8 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "jbackserver",
-	Short: "Background server for jchat",
+	Use:   "gratserver",
+	Short: "Background server for grat",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		logger.Init(verbose)
 	},

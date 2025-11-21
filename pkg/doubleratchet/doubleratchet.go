@@ -29,7 +29,7 @@ func New(sharedSecret []byte, theirKey *ecdh.PublicKey) (*DoubleRatchet, error) 
 
 	rootChain := kdfchain.RootKDFChain{
 		RootKey: sharedSecret,
-		Info:    []byte("Root chain for jchat"),
+		Info:    []byte("Root chain for grat"),
 	}
 
 	ratchet := DoubleRatchet{

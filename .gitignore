@@ -18,5 +18,12 @@
 !LICENSE
 !Makefile
 
+!sqlc.yml
+!db/schema.sql
+!db/migrations/*.sql
+!db/queries/*.sql
+
+!example.env
+
 # ...even if they are in subdirectories
 !*/

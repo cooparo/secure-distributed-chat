@@ -1,13 +1,16 @@
 package command
 
 import (
+	"context"
 	"fmt"
-	"io"
 	"net"
-	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/cooparo/secure-distributed-chat/pkg/logger"
-	"github.com/cooparo/secure-distributed-chat/pkg/packets"
+	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
 	"github.com/spf13/cobra"
 )
 
@@ -23,36 +26,55 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		logger.Init(verbose)
 	},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		bindAddr := fmt.Sprintf("%s:%d", addr, port)
-		s := fmt.Sprintf("Starting server on %s", bindAddr)
-		logger.Get().Info(s)
+	Run: func(cmd *cobra.Command, args []string) {
+		// Context for graceful stop at SIGINT/SIGTERM
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+
+		// WaitGroup semaphore for connection count
+		var wg sync.WaitGroup
+
+		bindAddr := fmt.Sprintf("[%s]:%d", addr, port)
+		logger.Get().Infof("Starting server on %s", bindAddr)
 		ln, err := net.Listen("tcp", bindAddr)
 		if err != nil {
-			return err
+			logger.Get().Fatalf("Got error making TCP listener: %s", err.Error())
 		}
 
+		netprotocol.ServeListener(ctx, ln, &wg)
+
+		// TODO: setup IPC socket
+
+		// Wait for shutdown
+		<-ctx.Done()
+
+		logger.Get().Info("Stopping...")
+		// Wait for all active connections to finish
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
 		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				// TODO: handle this more graceful instead of crashing
-				return err
+			select {
+			case <-done:
+				return
+			case <-time.After(1 * time.Second):
+				logger.Get().Info("Waiting for connections to finish...")
 			}
-			go packets.HandleConnection(conn)
 		}
+
+		// TODO: IPC socket cleanup
 	},
 }
 
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		io.WriteString(os.Stderr, err.Error())
-		os.Exit(1)
-	}
+	rootCmd.Execute()
 }
 
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging")
-	rootCmd.Flags().StringVarP(&addr, "address", "a", "0.0.0.0", "Address to listen on")
+	rootCmd.Flags().StringVarP(&addr, "address", "a", "::", "Address to listen on")
 	rootCmd.Flags().UintVarP(&port, "port", "p", 1337, "Port to listen on")
 }

@@ -17,8 +17,8 @@ INSERT INTO messages(
 	contents
 )
 SELECT
-	(SELECT id FROM identity WHERE identity.address = ?3),
-	(SELECT id FROM identity WHERE identity.address = ?4),
+	(SELECT id FROM identities WHERE identities.address = ?3),
+	(SELECT id FROM identities WHERE identities.address = ?4),
 	?,
 	?
 `
@@ -47,8 +47,8 @@ SELECT
 	messages.time,
 	messages.contents
 FROM messages
-JOIN identity sender ON messages.sender_id = sender.id
-JOIN identity receiver ON messages.receiver_id = receiver.id
+JOIN identities sender ON messages.sender_id = sender.id
+JOIN identities receiver ON messages.receiver_id = receiver.id
 WHERE sender.address = ?1
 OR receiver.address = ?1
 ORDER BY messages.time ASC

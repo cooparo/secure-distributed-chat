@@ -1,4 +1,4 @@
-package encryption
+package doubleratchet
 
 import (
 	"crypto/aes"
@@ -7,13 +7,22 @@ import (
 	"io"
 )
 
-func AEADEncrypt(key, plaintext, associatedData []byte) ([]byte, []byte, error) {
+func newAESGCM(key []byte) (cipher.AEAD, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	return aesgcm, nil
+}
+
+func encrypt(key, plaintext, associatedData []byte) ([]byte, []byte, error) {
+	aesgcm, err := newAESGCM(key)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -28,13 +37,8 @@ func AEADEncrypt(key, plaintext, associatedData []byte) ([]byte, []byte, error) 
 	return nonce, ciphertext, nil
 }
 
-func AEADDecrypt(key, nonce, ciphertext, associatedData []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	aesgcm, err := cipher.NewGCM(block)
+func decrypt(key, nonce, ciphertext, associatedData []byte) ([]byte, error) {
+	aesgcm, err := newAESGCM(key)
 	if err != nil {
 		return nil, err
 	}

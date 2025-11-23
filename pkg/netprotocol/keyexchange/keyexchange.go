@@ -24,18 +24,18 @@ type exchangeResponse struct {
 	Signature    [64]byte
 }
 
-func HandleRequest(c net.Conn) error {
+func HandleRequest(conn net.Conn) error {
 	request := exchangeRequest{}
-	err := binary.Read(c, binary.BigEndian, &request)
+	err := binary.Read(conn, binary.BigEndian, &request)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func HandleResponse(c net.Conn) error {
+func HandleResponse(conn net.Conn) error {
 	response := exchangeResponse{}
-	err := binary.Read(c, binary.BigEndian, &response)
+	err := binary.Read(conn, binary.BigEndian, &response)
 	if err != nil {
 		return err
 	}

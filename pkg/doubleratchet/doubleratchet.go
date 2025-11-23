@@ -5,8 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/cooparo/secure-distributed-chat/pkg/encryption"
-	"github.com/cooparo/secure-distributed-chat/pkg/kdfchain"
+	"github.com/cooparo/secure-distributed-chat/pkg/doubleratchet/kdfchain"
 )
 
 type DoubleRatchet struct {
@@ -117,7 +116,7 @@ func (r *DoubleRatchet) Encrypt(plaintext, associatedData []byte) ([]byte, []byt
 		return nil, nil, err
 	}
 
-	nonce, ciphertext, err := encryption.AEADEncrypt(key, plaintext, associatedData)
+	nonce, ciphertext, err := encrypt(key, plaintext, associatedData)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -136,7 +135,7 @@ func (r *DoubleRatchet) Decrypt(theirKey *ecdh.PublicKey, nonce, ciphertext, ass
 		return nil, err
 	}
 
-	plaintext, err := encryption.AEADDecrypt(key, nonce, ciphertext, associatedData)
+	plaintext, err := decrypt(key, nonce, ciphertext, associatedData)
 	if err != nil {
 		return nil, err
 	}

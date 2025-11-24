@@ -1,14 +1,14 @@
-package message
+package nethandle
 
 import (
 	"net"
 
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
-	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol/message"
+	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
 )
 
 func HandleMessage(conn net.Conn) error {
-	msg, err := message.Read(conn)
+	msg, err := netprotocol.ReadMessage(conn)
 	if err != nil {
 		return err
 	}

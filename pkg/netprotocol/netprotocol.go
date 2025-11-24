@@ -28,7 +28,7 @@ func (h *MainHeader) Write(w io.Writer) error {
 	return nil
 }
 
-func Read(r io.Reader) (*MainHeader, error) {
+func ReadMainHeader(r io.Reader) (*MainHeader, error) {
 	h := MainHeader{}
 	err := binary.Read(r, binary.BigEndian, &h)
 	if err != nil {

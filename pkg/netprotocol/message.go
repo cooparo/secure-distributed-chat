@@ -1,4 +1,4 @@
-package message
+package netprotocol
 
 import (
 	"crypto/ecdh"
@@ -47,7 +47,7 @@ func (m *Message) Write(w io.Writer) error {
 	return nil
 }
 
-func Read(r io.Reader) (*Message, error) {
+func ReadMessage(r io.Reader) (*Message, error) {
 	m := Message{}
 	header := MessageHeader{}
 	err := binary.Read(r, binary.BigEndian, &header)

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
-	"github.com/cooparo/secure-distributed-chat/internal/nethandle/message"
 	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
 )
 
@@ -30,7 +29,7 @@ var packetTypeHandler = map[netprotocol.PacketType]packetHandler{
 		logger.Get().Debugf("Got heartbeat from %s", conn.RemoteAddr().String())
 		return nil
 	},
-	netprotocol.PacketTypeMessage: message.HandleMessage,
+	netprotocol.PacketTypeMessage: HandleMessage,
 }
 
 func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup) {
@@ -67,7 +66,7 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) {
 			default:
 			}
 			conn.SetReadDeadline(time.Now().Add(connTimeout))
-			header, err := netprotocol.Read(conn)
+			header, err := netprotocol.ReadMainHeader(conn)
 			if err != nil {
 				// Timeout
 				if errors.Is(err, os.ErrDeadlineExceeded) {

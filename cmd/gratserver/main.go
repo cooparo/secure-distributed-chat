@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
-	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
+	"github.com/cooparo/secure-distributed-chat/internal/nethandle"
 	"github.com/spf13/cobra"
 )
 
@@ -40,7 +40,7 @@ var rootCmd = &cobra.Command{
 			logger.Get().Fatalf("Got error making TCP listener: %s", err.Error())
 		}
 
-		netprotocol.ServeListener(ctx, ln, &wg)
+		nethandle.ServeListener(ctx, ln, &wg)
 
 		// TODO: setup IPC socket
 

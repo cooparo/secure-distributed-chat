@@ -1,4 +1,4 @@
-package keyexchange
+package netprotocol
 
 import (
 	"crypto/ecdh"
@@ -8,7 +8,7 @@ import (
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 )
 
-type Request struct {
+type KeyExchangeRequest struct {
 	SendIDAddr    identity.IdentityAddress
 	RecvIDAddr    identity.IdentityAddress
 	KeyBundle     *identity.KeyBundle
@@ -17,7 +17,7 @@ type Request struct {
 	Signature     [64]byte
 }
 
-func (req *Request) Write(w io.Writer) error {
+func (req *KeyExchangeRequest) Write(w io.Writer) error {
 	err := binary.Write(w, binary.BigEndian, req.SendIDAddr)
 	if err != nil {
 		return err
@@ -51,8 +51,8 @@ func (req *Request) Write(w io.Writer) error {
 	return nil
 }
 
-func ReadRequest(r io.Reader) (*Request, error) {
-	req := Request{}
+func ReadKeyExchangeRequest(r io.Reader) (*KeyExchangeRequest, error) {
+	req := KeyExchangeRequest{}
 	err := binary.Read(r, binary.BigEndian, req.SendIDAddr)
 	if err != nil {
 		return nil, err
@@ -132,7 +132,7 @@ func (resp *Response) Write(w io.Writer) error {
 	return nil
 }
 
-func ReadResponse(r io.Reader) (*Response, error) {
+func ReadKeyExchangeResponse(r io.Reader) (*Response, error) {
 	resp := Response{}
 	err := binary.Read(r, binary.BigEndian, resp.RecvIDAddr)
 	if err != nil {

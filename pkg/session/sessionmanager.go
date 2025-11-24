@@ -35,5 +35,3 @@ func (m *SessionManager) Delete(addr identity.IdentityAddress) {
 	delete(m.sessions, addr)
 	m.mu.Unlock()
 }
-
-// TODO: SessionManager.SaveAll() method to store in database

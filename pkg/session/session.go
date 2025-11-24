@@ -9,5 +9,3 @@ type Session struct {
 	Address identity.IdentityAddress
 	Ratchet doubleratchet.DoubleRatchet
 }
-
-// TODO: Session.Save() method to store in database

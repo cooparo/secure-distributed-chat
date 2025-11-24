@@ -6,8 +6,8 @@ INSERT INTO messages(
 	contents
 )
 SELECT
-	(SELECT id FROM identity WHERE identity.address = sqlc.arg(sender_address)),
-	(SELECT id FROM identity WHERE identity.address = sqlc.arg(receiver_address)),
+	(SELECT id FROM identities WHERE identities.address = sqlc.arg(sender_address)),
+	(SELECT id FROM identities WHERE identities.address = sqlc.arg(receiver_address)),
 	?,
 	?;
 
@@ -18,8 +18,8 @@ SELECT
 	messages.time,
 	messages.contents
 FROM messages
-JOIN identity sender ON messages.sender_id = sender.id
-JOIN identity receiver ON messages.receiver_id = receiver.id
+JOIN identities sender ON messages.sender_id = sender.id
+JOIN identities receiver ON messages.receiver_id = receiver.id
 WHERE sender.address = sqlc.arg(address)
 OR receiver.address = sqlc.arg(address)
 ORDER BY messages.time ASC;

@@ -9,8 +9,8 @@ SELECT
 	sessions.recv_chain_key,
 	sessions.recv_msg_count,
 	sessions.recv_prev_msg_count
-FROM identity JOIN sessions ON identity.id = sessions.identity_id
-WHERE identity.address = ? LIMIT 1;
+FROM identities JOIN sessions ON identities.id = sessions.identity_id
+WHERE identities.address = ? LIMIT 1;
 
 -- name: AddSession :exec
 INSERT INTO sessions(
@@ -26,12 +26,12 @@ INSERT INTO sessions(
 	recv_prev_msg_count
 )
 SELECT id, ?, ?, ?, ?, ?, ?, ?, ?, ?
-FROM identity WHERE address = ?;
+FROM identities WHERE address = ?;
 
 -- name: DeleteSession :exec
 DELETE FROM sessions
 WHERE identity_id = (
-	SELECT id FROM identity
+	SELECT id FROM identities
 	WHERE address = ?
 );
 
@@ -40,7 +40,7 @@ UPDATE sessions
 SET send_chain_key = ?, send_msg_count = ?
 WHERE identity_id = (
 	SELECT id
-	FROM identity
+	FROM identities
 	WHERE address = ?
 );
 
@@ -49,7 +49,7 @@ UPDATE sessions
 SET recv_chain_key = ?, recv_msg_count = ?
 WHERE identity_id = (
 	SELECT id
-	FROM identity
+	FROM identities
 	WHERE address = ?
 );
 
@@ -67,6 +67,6 @@ SET
 	recv_prev_msg_count = ?
 WHERE identity_id = (
 	SELECT id
-	FROM identity
+	FROM identities
 	WHERE address = ?
 );

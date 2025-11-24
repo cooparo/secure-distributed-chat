@@ -19,8 +19,8 @@
 !Makefile
 
 !sqlc.yml
-!db/migrations/*.sql
-!db/queries/*.sql
+!internal/database/migrations/*.sql
+!internal/database/queries/*.sql
 
 # ...even if they are in subdirectories
 !*/

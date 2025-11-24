@@ -61,11 +61,6 @@ func Read(r io.Reader) (*Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	key, err := ecdh.X25519().NewPublicKey(keyBytes)
-	if err != nil {
-		return nil, err
-	}
-	m.EphemeralKey = key
 
 	err = binary.Read(r, binary.BigEndian, &m.Nonce)
 	if err != nil {
@@ -77,6 +72,12 @@ func Read(r io.Reader) (*Message, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	ephemeralKey, err := ecdh.X25519().NewPublicKey(keyBytes)
+	if err != nil {
+		return nil, err
+	}
+	m.EphemeralKey = ephemeralKey
 
 	return &m, nil
 }

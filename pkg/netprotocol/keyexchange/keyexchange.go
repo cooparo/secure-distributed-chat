@@ -73,23 +73,24 @@ func ReadRequest(r io.Reader) (*Request, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	req.NetAddrUpdate = netAddrUpdate
+
 	ephemeralKeyBytes := make([]byte, 32)
 	err = binary.Read(r, binary.BigEndian, ephemeralKeyBytes)
 	if err != nil {
 		return nil, err
 	}
-	ephemeralKey, err := ecdh.X25519().NewPublicKey(ephemeralKeyBytes)
-	if err != nil {
-		return nil, err
-	}
-	req.EphemeralKey = ephemeralKey
 
 	err = binary.Read(r, binary.BigEndian, req.Signature)
 	if err != nil {
 		return nil, err
 	}
+
+	ephemeralKey, err := ecdh.X25519().NewPublicKey(ephemeralKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	req.EphemeralKey = ephemeralKey
 
 	return &req, nil
 }
@@ -148,11 +149,6 @@ func ReadResponse(r io.Reader) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	ephemeralKey, err := ecdh.X25519().NewPublicKey(ephemeralKeyBytes)
-	if err != nil {
-		return nil, err
-	}
-	resp.EphemeralKey = ephemeralKey
 
 	ratchetKeyBytes := make([]byte, 32)
 	err = binary.Read(r, binary.BigEndian, ratchetKeyBytes)
@@ -160,16 +156,22 @@ func ReadResponse(r io.Reader) (*Response, error) {
 		return nil, err
 	}
 
-	ratchetKey, err := ecdh.X25519().NewPublicKey(ratchetKeyBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	resp.RatchetKey = ratchetKey
 	err = binary.Read(r, binary.BigEndian, resp.Signature)
 	if err != nil {
 		return nil, err
 	}
+
+	ephemeralKey, err := ecdh.X25519().NewPublicKey(ephemeralKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	resp.EphemeralKey = ephemeralKey
+
+	ratchetKey, err := ecdh.X25519().NewPublicKey(ratchetKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	resp.RatchetKey = ratchetKey
 
 	return &resp, nil
 }

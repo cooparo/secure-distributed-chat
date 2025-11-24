@@ -49,16 +49,18 @@ func ReadKeyBundle(r io.Reader) (*KeyBundle, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	err = binary.Read(r, binary.BigEndian, b.Signature)
+	if err != nil {
+		return nil, err
+	}
+
 	dhKey, err := ecdh.X25519().NewPublicKey(dhKeyBytes)
 	if err != nil {
 		return nil, err
 	}
 	b.DHKey = dhKey
 
-	err = binary.Read(r, binary.BigEndian, b.Signature)
-	if err != nil {
-		return nil, err
-	}
 	return &b, nil
 }
 

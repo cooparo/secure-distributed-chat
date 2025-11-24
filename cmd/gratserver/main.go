@@ -8,7 +8,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/cooparo/secure-distributed-chat/pkg/logger"
+	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
 	"github.com/spf13/cobra"
 )

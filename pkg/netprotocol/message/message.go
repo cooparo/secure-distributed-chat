@@ -3,57 +3,80 @@ package message
 import (
 	"crypto/ecdh"
 	"encoding/binary"
-	"net"
+	"io"
 
-	"github.com/cooparo/secure-distributed-chat/pkg/logger"
+	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 )
 
-type messageHeader struct {
-	DataLength     uint16
-	PrevChainCount uint8
-	ChainCount     uint8
+type MessageHeader struct {
+	IdentityAddress identity.IdentityAddress
+	DataLength      uint16
+	PrevChainCount  uint8
+	ChainCount      uint8
 }
 
-func HandleMessage(conn net.Conn) error {
-	header := messageHeader{}
-	err := binary.Read(conn, binary.BigEndian, &header)
+type Message struct {
+	Header       *MessageHeader
+	EphemeralKey *ecdh.PublicKey
+	Nonce        [12]byte
+	Data         []byte
+}
+
+func (m *Message) Write(w io.Writer) error {
+	err := binary.Write(w, binary.BigEndian, m.Header)
 	if err != nil {
 		return err
 	}
 
-	logger.Get().Debugf("There are %d bytes of encrypted data", header.DataLength)
-
-	logger.Get().Debugf("There was %d messages in the previous chain", header.PrevChainCount)
-
-	logger.Get().Debugf("There is %d messages in this chain", header.ChainCount)
-
-	ephemeralKeyBytes := make([]byte, 32)
-	_, err = conn.Read(ephemeralKeyBytes)
-	if err != nil {
-		return err
-	}
-	ephemeralKey, err := ecdh.X25519().NewPublicKey(ephemeralKeyBytes)
+	keyBytes := m.EphemeralKey.Bytes()
+	err = binary.Write(w, binary.BigEndian, keyBytes)
 	if err != nil {
 		return err
 	}
 
-	logger.Get().Debugf("Got ephemeral ECDH key: %#x", ephemeralKey.Bytes())
-
-	nonce := make([]byte, 12)
-	_, err = conn.Read(nonce)
+	err = binary.Write(w, binary.BigEndian, m.Nonce)
 	if err != nil {
 		return err
 	}
 
-	logger.Get().Debugf("Got nonce: %#x", nonce)
-
-	encryptedData := make([]byte, header.DataLength)
-	_, err = conn.Read(encryptedData)
+	err = binary.Write(w, binary.BigEndian, m.Data)
 	if err != nil {
 		return err
 	}
-
-	logger.Get().Debugf("Got encrypted data: %#x", encryptedData)
 
 	return nil
+}
+
+func Read(r io.Reader) (*Message, error) {
+	m := Message{}
+	header := MessageHeader{}
+	err := binary.Read(r, binary.BigEndian, &header)
+	if err != nil {
+		return nil, err
+	}
+	m.Header = &header
+
+	keyBytes := make([]byte, 32)
+	err = binary.Read(r, binary.BigEndian, keyBytes)
+	if err != nil {
+		return nil, err
+	}
+	key, err := ecdh.X25519().NewPublicKey(keyBytes)
+	if err != nil {
+		return nil, err
+	}
+	m.EphemeralKey = key
+
+	err = binary.Read(r, binary.BigEndian, &m.Nonce)
+	if err != nil {
+		return nil, err
+	}
+
+	m.Data = make([]byte, m.Header.DataLength)
+	err = binary.Read(r, binary.BigEndian, m.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	return &m, nil
 }

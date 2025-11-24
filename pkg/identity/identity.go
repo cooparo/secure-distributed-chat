@@ -5,21 +5,86 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/binary"
+	"io"
 	"net"
 )
 
 type IdentityAddress [20]byte
 
 type KeyBundle struct {
-	SigningKey *ed25519.PrivateKey
-	DHKey      *ecdh.PrivateKey
+	SigningKey *ed25519.PublicKey
+	DHKey      *ecdh.PublicKey
 	Signature  [64]byte
+}
+
+func (b *KeyBundle) Write(w io.Writer) error {
+	err := binary.Write(w, binary.BigEndian, b.SigningKey)
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(w, binary.BigEndian, b.DHKey.Bytes())
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(w, binary.BigEndian, b.Signature)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ReadKeyBundle(r io.Reader) (*KeyBundle, error) {
+	b := KeyBundle{}
+	err := binary.Read(r, binary.BigEndian, &b.SigningKey)
+	if err != nil {
+		return nil, err
+	}
+
+	dhKeyBytes := make([]byte, 32)
+	err = binary.Read(r, binary.BigEndian, dhKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	dhKey, err := ecdh.X25519().NewPublicKey(dhKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	b.DHKey = dhKey
+
+	err = binary.Read(r, binary.BigEndian, b.Signature)
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
 }
 
 type NetAddrUpdate struct {
 	Timestamp int64
 	NetAddr   net.IP
 	Signature [64]byte
+}
+
+func (n *NetAddrUpdate) Write(w io.Writer) error {
+	err := binary.Write(w, binary.BigEndian, n)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ReadNetAddrUpdate(r io.Reader) (*NetAddrUpdate, error) {
+	n := NetAddrUpdate{}
+	err := binary.Read(r, binary.BigEndian, &n)
+	if err != nil {
+		return nil, err
+	}
+
+	return &n, nil
 }
 
 func GenerateIdentity() (IdentityAddress, *KeyBundle, error) {
@@ -44,16 +109,12 @@ func GenerateIdentity() (IdentityAddress, *KeyBundle, error) {
 	}
 
 	keyBundle := KeyBundle{
-		SigningKey: &signingKey,
-		DHKey:      dhKey,
+		SigningKey: &pubSigningKey,
+		DHKey:      dhKey.PublicKey(),
 		Signature:  [64]byte(keySignature),
 	}
 
-	return [20]byte(address), &keyBundle, nil
-}
+	// TODO: save privatekeys
 
-func (k *KeyBundle) Public() []byte {
-	pubBundle := append(k.SigningKey.Public().([]byte), k.DHKey.PublicKey().Bytes()...)
-	pubBundle = append(pubBundle, k.Signature[:]...)
-	return pubBundle
+	return [20]byte(address), &keyBundle, nil
 }

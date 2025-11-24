@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/cooparo/secure-distributed-chat/pkg/logger"
 	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
@@ -56,14 +55,7 @@ var rootCmd = &cobra.Command{
 			close(done)
 		}()
 
-		for {
-			select {
-			case <-done:
-				return
-			case <-time.After(1 * time.Second):
-				logger.Get().Info("Waiting for connections to finish...")
-			}
-		}
+		<-done
 
 		// TODO: IPC socket cleanup
 	},

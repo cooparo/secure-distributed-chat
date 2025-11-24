@@ -9,29 +9,35 @@ import (
 type SessionManager struct {
 	mu       sync.RWMutex
 	sessions map[identity.IdentityAddress]*Session
+	address  identity.IdentityAddress
 }
 
-func NewSessionManager() *SessionManager {
+func NewSessionManager(address identity.IdentityAddress) *SessionManager {
 	return &SessionManager{
 		sessions: make(map[identity.IdentityAddress]*Session),
+		address:  address,
 	}
 }
 
-func (m *SessionManager) Get(addr identity.IdentityAddress) (*Session, bool) {
+func (m *SessionManager) Get(address identity.IdentityAddress) (*Session, bool) {
 	m.mu.RLock()
-	s, ok := m.sessions[addr]
+	s, ok := m.sessions[address]
 	m.mu.RUnlock()
 	return s, ok
 }
 
-func (m *SessionManager) Set(addr identity.IdentityAddress, s *Session) {
+func (m *SessionManager) Set(address identity.IdentityAddress, s *Session) {
 	m.mu.Lock()
-	m.sessions[addr] = s
+	m.sessions[address] = s
 	m.mu.Unlock()
 }
 
-func (m *SessionManager) Delete(addr identity.IdentityAddress) {
+func (m *SessionManager) Delete(address identity.IdentityAddress) {
 	m.mu.Lock()
-	delete(m.sessions, addr)
+	delete(m.sessions, address)
 	m.mu.Unlock()
+}
+
+func (m *SessionManager) Address() identity.IdentityAddress {
+	return m.address
 }

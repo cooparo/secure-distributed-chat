@@ -95,21 +95,21 @@ func ReadKeyExchangeRequest(r io.Reader) (*KeyExchangeRequest, error) {
 	return &req, nil
 }
 
-type Response struct {
-	RecvIDAddr   identity.IdentityAddress
+type KeyExchangeResponse struct {
 	SendIDAddr   identity.IdentityAddress
+	RecvIDAddr   identity.IdentityAddress
 	EphemeralKey *ecdh.PublicKey
 	RatchetKey   *ecdh.PublicKey
 	Signature    [64]byte
 }
 
-func (resp *Response) Write(w io.Writer) error {
-	err := binary.Write(w, binary.BigEndian, resp.RecvIDAddr)
+func (resp *KeyExchangeResponse) Write(w io.Writer) error {
+	err := binary.Write(w, binary.BigEndian, resp.SendIDAddr)
 	if err != nil {
 		return err
 	}
 
-	err = binary.Write(w, binary.BigEndian, resp.SendIDAddr)
+	err = binary.Write(w, binary.BigEndian, resp.RecvIDAddr)
 	if err != nil {
 		return err
 	}
@@ -132,14 +132,14 @@ func (resp *Response) Write(w io.Writer) error {
 	return nil
 }
 
-func ReadKeyExchangeResponse(r io.Reader) (*Response, error) {
-	resp := Response{}
-	err := binary.Read(r, binary.BigEndian, resp.RecvIDAddr)
+func ReadKeyExchangeResponse(r io.Reader) (*KeyExchangeResponse, error) {
+	resp := KeyExchangeResponse{}
+	err := binary.Read(r, binary.BigEndian, resp.SendIDAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	err = binary.Read(r, binary.BigEndian, resp.SendIDAddr)
+	err = binary.Read(r, binary.BigEndian, resp.RecvIDAddr)
 	if err != nil {
 		return nil, err
 	}

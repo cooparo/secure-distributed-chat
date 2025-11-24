@@ -10,6 +10,8 @@ import (
 
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/internal/nethandle"
+	"github.com/cooparo/secure-distributed-chat/pkg/identity"
+	"github.com/cooparo/secure-distributed-chat/pkg/session"
 	"github.com/spf13/cobra"
 )
 
@@ -33,6 +35,9 @@ var rootCmd = &cobra.Command{
 		// WaitGroup semaphore for connection count
 		var wg sync.WaitGroup
 
+		// Session Manager
+		mgr := session.NewSessionManager(identity.IdentityAddress{}) // TODO: Get real address
+
 		bindAddr := fmt.Sprintf("[%s]:%d", addr, port)
 		logger.Get().Infof("Starting server on %s", bindAddr)
 		ln, err := net.Listen("tcp", bindAddr)
@@ -40,7 +45,7 @@ var rootCmd = &cobra.Command{
 			logger.Get().Fatalf("Got error making TCP listener: %s", err.Error())
 		}
 
-		nethandle.ServeListener(ctx, ln, &wg)
+		nethandle.ServeListener(ctx, ln, &wg, mgr)
 
 		// TODO: setup IPC socket
 

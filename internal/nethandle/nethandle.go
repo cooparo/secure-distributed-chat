@@ -11,6 +11,7 @@ import (
 
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
+	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
 const connTimeout = 5 * time.Second
@@ -22,17 +23,16 @@ var packetTypeName = map[netprotocol.PacketType]string{
 	netprotocol.PacketTypeKeyExchangeResponse: "Key Exchange Response",
 }
 
-type packetHandler func(net.Conn) error
+type packetHandler func(net.Conn, *session.SessionManager) error
 
 var packetTypeHandler = map[netprotocol.PacketType]packetHandler{
-	netprotocol.PacketTypeHeartbeat: func(conn net.Conn) error {
-		logger.Get().Debugf("Got heartbeat from %s", conn.RemoteAddr().String())
-		return nil
-	},
-	netprotocol.PacketTypeMessage: HandleMessage,
+	netprotocol.PacketTypeHeartbeat:           HandleHeartbeat,
+	netprotocol.PacketTypeMessage:             HandleMessage,
+	netprotocol.PacketTypeKeyExchangeRequest:  HandleKeyExchangeRequest,
+	netprotocol.PacketTypeKeyExchangeResponse: HandleKeyExchangeResponse,
 }
 
-func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup) {
+func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr *session.SessionManager) {
 	go func() {
 		<-ctx.Done()
 		ln.Close()
@@ -50,14 +50,16 @@ func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup) {
 				logger.Get().Errorf("Accept error: %s", err.Error())
 				continue
 			}
-			handleConn(ctx, conn, wg)
+			handleConn(ctx, conn, wg, mgr)
 		}
 	}()
 }
 
-func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) {
+func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *session.SessionManager) {
 	wg.Go(func() {
 		defer conn.Close()
+
+		logger.Get().Infof("Got connection from %s", conn.RemoteAddr().String())
 
 		for {
 			select {
@@ -99,7 +101,7 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) {
 				return
 			}
 
-			err = handler(conn)
+			err = handler(conn, mgr)
 			if err != nil {
 				logger.Get().Errorf("Got error handling PacketType %s (%#x) from %s: %s", packetName, header.PacketType, conn.RemoteAddr().String(), err.Error())
 				return

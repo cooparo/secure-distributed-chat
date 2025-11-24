@@ -1,19 +1,31 @@
 package identity
 
 import (
+	"bytes"
 	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base32"
 	"encoding/binary"
 	"io"
-	"net"
 )
 
 type IdentityAddress [20]byte
 
+func (a IdentityAddress) String() string {
+	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
+	dst := make([]byte, encoding.EncodedLen(len(a)))
+	encoding.Encode(dst, a[:])
+	return string(dst)
+}
+
+func (a IdentityAddress) Equal(o IdentityAddress) bool {
+	return bytes.Equal(a[:], o[:])
+}
+
 type KeyBundle struct {
-	SigningKey *ed25519.PublicKey
+	SigningKey ed25519.PublicKey
 	DHKey      *ecdh.PublicKey
 	Signature  [64]byte
 }
@@ -64,9 +76,63 @@ func ReadKeyBundle(r io.Reader) (*KeyBundle, error) {
 	return &b, nil
 }
 
+func (b *KeyBundle) Sign(privateKey ed25519.PrivateKey) error {
+	var buffer bytes.Buffer
+	err := b.Write(&buffer)
+	if err != nil {
+		return err
+	}
+
+	signature := ed25519.Sign(privateKey, buffer.Bytes()[:64])
+
+	b.Signature = [64]byte(signature)
+
+	return nil
+}
+
+func (b *KeyBundle) Verify(address IdentityAddress) (bool, error) {
+	calcAddress, err := b.Address()
+	if err != nil {
+		return false, err
+	}
+
+	if !calcAddress.Equal(address) {
+		return false, nil
+	}
+
+	var buffer bytes.Buffer
+	err = b.Write(&buffer)
+	if err != nil {
+		return false, err
+	}
+
+	ok := ed25519.Verify(b.SigningKey, buffer.Bytes()[:64], b.Signature[:])
+	if !ok {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (b *KeyBundle) Address() (IdentityAddress, error) {
+	var buffer bytes.Buffer
+	err := b.Write(&buffer)
+	if err != nil {
+		return IdentityAddress{}, err
+	}
+
+	h := sha256.New()
+	_, err = h.Write(buffer.Bytes()[:64])
+	if err != nil {
+		return IdentityAddress{}, err
+	}
+	address := h.Sum(nil)[:20]
+
+	return IdentityAddress(address), nil
+}
+
 type NetAddrUpdate struct {
 	Timestamp int64
-	NetAddr   net.IP
+	NetAddr   [16]byte
 	Signature [64]byte
 }
 
@@ -101,22 +167,23 @@ func GenerateIdentity() (IdentityAddress, *KeyBundle, error) {
 
 	pubKeys := append(pubSigningKey, dhKey.PublicKey().Bytes()...)
 
-	h := sha256.New()
-	h.Write(pubKeys)
-	address := h.Sum(nil)[:20]
-
 	keySignature, err := signingKey.Sign(rand.Reader, pubKeys, nil)
 	if err != nil {
 		return [20]byte{}, nil, err
 	}
 
 	keyBundle := KeyBundle{
-		SigningKey: &pubSigningKey,
+		SigningKey: pubSigningKey,
 		DHKey:      dhKey.PublicKey(),
 		Signature:  [64]byte(keySignature),
 	}
 
+	address, err := keyBundle.Address()
+	if err != nil {
+		return IdentityAddress{}, nil, err
+	}
+
 	// TODO: save privatekeys
 
-	return [20]byte(address), &keyBundle, nil
+	return address, &keyBundle, nil
 }

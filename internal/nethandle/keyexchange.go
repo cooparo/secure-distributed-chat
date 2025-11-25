@@ -3,6 +3,7 @@ package nethandle
 import (
 	"crypto/ecdh"
 	"crypto/rand"
+	"crypto/sha3"
 	"net"
 
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
@@ -11,27 +12,34 @@ import (
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
+// TODO: Return more errors to the callers
+
 func HandleKeyExchangeRequest(conn net.Conn, mgr *session.SessionManager) error {
 	req, err := netprotocol.ReadKeyExchangeRequest(conn)
 	if err != nil {
 		return err
 	}
 
-	logger.Get().Debugf("Key Exchange Request from %s to %s", req.SendIDAddr.String(), req.RecvIDAddr.String())
+	logger.Get().Debugf("Key Exchange Request from %s to %s", req.SendIDAddr.Base32(), req.RecvIDAddr.Base32())
 
-	if !mgr.Address().Equal(req.RecvIDAddr) {
+	if !mgr.Address.Equal(req.RecvIDAddr) {
 		logger.Get().Debug("Key Exchange Request is not for us, ignoring...")
 		return nil
 	}
 
-	ok, err := req.KeyBundle.Verify(req.SendIDAddr)
+	calcAddress, err := req.SignedKeyBundle.KeyBundle.Address()
 	if err != nil {
-		logger.Get().Errorf("Got error while verifying attached KeyBundle for Identity %s: %s", req.SendIDAddr.String(), err.Error())
+		logger.Get().Errorf("Got error calculating address from KeyBundle: %s", err.Error())
 		return err
 	}
 
-	if !ok {
-		logger.Get().Debugf("KeyBundle for Identity %s failed verification", req.SendIDAddr)
+	if !calcAddress.Equal(req.SendIDAddr) {
+		logger.Get().Warnf("Address %s doesn't match the calculated address %s", req.SendIDAddr.Base32(), calcAddress.Base32())
+		return nil
+	}
+
+	if !req.SignedKeyBundle.Verify() {
+		logger.Get().Warn("KeyBundle failed verification")
 		return nil
 	}
 
@@ -39,33 +47,40 @@ func HandleKeyExchangeRequest(conn net.Conn, mgr *session.SessionManager) error 
 
 	// TODO: store identity in database
 
-	ephemeralKey, err := ecdh.X25519().GenerateKey(rand.Reader)
+	ephemeralPrivateKey, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
 		return err
 	}
 
-	sharedSecret, err := ephemeralKey.ECDH(req.EphemeralKey)
+	staticSecret, err := mgr.PrivateKeyBundle.DiffieHellmanPrivateKey.ECDH(req.SignedKeyBundle.KeyBundle.DiffieHellmanKey)
 	if err != nil {
 		return err
 	}
 
-	ratchet, err := doubleratchet.New(sharedSecret, nil)
+	ephemeralSecret, err := ephemeralPrivateKey.ECDH(req.EphemeralKey)
+	if err != nil {
+		return err
+	}
+
+	sharedSecret := sha3.Sum256(append(staticSecret, ephemeralSecret...))
+
+	ratchet, err := doubleratchet.New(sharedSecret[:], nil)
 	if err != nil {
 		return err
 	}
 
 	sess := session.Session{
-		Ratchet:    ratchet,
-		SigningKey: req.KeyBundle.SigningKey,
+		Ratchet:   ratchet,
+		KeyBundle: req.SignedKeyBundle.KeyBundle,
 	}
 
-	mgr.Set(req.SendIDAddr, &sess)
+	mgr.Set(req.SendIDAddr.Base32(), &sess)
 
 	// TODO: Generate Signature
 	resp := netprotocol.KeyExchangeResponse{
 		SendIDAddr:   req.RecvIDAddr,
 		RecvIDAddr:   req.SendIDAddr,
-		EphemeralKey: ephemeralKey.PublicKey(),
+		EphemeralKey: ephemeralPrivateKey.PublicKey(),
 		RatchetKey:   ratchet.OurKey.PublicKey(),
 	}
 
@@ -80,39 +95,43 @@ func HandleKeyExchangeResponse(conn net.Conn, mgr *session.SessionManager) error
 		return err
 	}
 
-	logger.Get().Debugf("Key Exchange Response from %s to %s", resp.SendIDAddr.String(), resp.RecvIDAddr.String())
+	logger.Get().Debugf("Key Exchange Response from %s to %s", resp.SendIDAddr.Base32(), resp.RecvIDAddr.Base32())
 
-	if mgr.Address().Equal(resp.RecvIDAddr) {
+	if mgr.Address.Equal(resp.RecvIDAddr) {
 		logger.Get().Debugf("Key Exchange Response is not for us, ignoring...")
 		return nil
 	}
 
 	// TODO: verify signature on response
 
-	sess, ok := mgr.Get(resp.SendIDAddr)
+	sess, ok := mgr.Get(resp.SendIDAddr.Base32())
 
 	if !ok {
 		logger.Get().Debug("No session found, ignoring...")
 		return nil
 	}
 
-	if sess.ExchangeKey == nil {
+	if sess.EphemeralExchangeKey == nil {
 		logger.Get().Debugf("No Key Exchange in process, ignoring...")
 		return nil
 	}
 
-	sharedSecret, err := sess.ExchangeKey.ECDH(resp.EphemeralKey)
+	staticSecret, err := mgr.PrivateKeyBundle.DiffieHellmanPrivateKey.ECDH(sess.KeyBundle.DiffieHellmanKey)
+
+	ephemeralSecret, err := sess.EphemeralExchangeKey.ECDH(resp.EphemeralKey)
 	if err != nil {
 		return err
 	}
 
-	ratchet, err := doubleratchet.New(sharedSecret, resp.RatchetKey)
+	sharedSecret := sha3.Sum256(append(staticSecret, ephemeralSecret...))
+
+	ratchet, err := doubleratchet.New(sharedSecret[:], resp.RatchetKey)
 	if err != nil {
 		return err
 	}
 
 	sess.Ratchet = ratchet
-	sess.ExchangeKey = nil
+	sess.EphemeralExchangeKey = nil
 
 	return nil
 }

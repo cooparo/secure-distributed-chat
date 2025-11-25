@@ -7,37 +7,37 @@ import (
 )
 
 type SessionManager struct {
-	mu       sync.RWMutex
-	sessions map[identity.IdentityAddress]*Session
-	address  identity.IdentityAddress
+	mu               sync.RWMutex
+	sessions         map[string]*Session
+	Address          identity.IdentityAddress
+	PrivateKeyBundle *identity.PrivateKeyBundle
 }
 
-func NewSessionManager(address identity.IdentityAddress) *SessionManager {
+// Make a new session manager.
+// Expects both address and privKeyBundle has been validated.
+func NewSessionManager(address identity.IdentityAddress, privKeyBundle *identity.PrivateKeyBundle) *SessionManager {
 	return &SessionManager{
-		sessions: make(map[identity.IdentityAddress]*Session),
-		address:  address,
+		sessions:         make(map[string]*Session),
+		Address:          address,
+		PrivateKeyBundle: privKeyBundle,
 	}
 }
 
-func (m *SessionManager) Get(address identity.IdentityAddress) (*Session, bool) {
+func (m *SessionManager) Get(key string) (*Session, bool) {
 	m.mu.RLock()
-	s, ok := m.sessions[address]
+	s, ok := m.sessions[key]
 	m.mu.RUnlock()
 	return s, ok
 }
 
-func (m *SessionManager) Set(address identity.IdentityAddress, s *Session) {
+func (m *SessionManager) Set(key string, s *Session) {
 	m.mu.Lock()
-	m.sessions[address] = s
+	m.sessions[key] = s
 	m.mu.Unlock()
 }
 
-func (m *SessionManager) Delete(address identity.IdentityAddress) {
+func (m *SessionManager) Delete(key string) {
 	m.mu.Lock()
-	delete(m.sessions, address)
+	delete(m.sessions, key)
 	m.mu.Unlock()
-}
-
-func (m *SessionManager) Address() identity.IdentityAddress {
-	return m.address
 }

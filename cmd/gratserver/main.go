@@ -36,7 +36,8 @@ var rootCmd = &cobra.Command{
 		var wg sync.WaitGroup
 
 		// Session Manager
-		mgr := session.NewSessionManager(identity.IdentityAddress{}) // TODO: Get real address
+		// TODO: Real Address and Key Bundle
+		mgr := session.NewSessionManager(identity.IdentityAddress{0x41}, &identity.PrivateKeyBundle{})
 
 		bindAddr := fmt.Sprintf("[%s]:%d", addr, port)
 		logger.Get().Infof("Starting server on %s", bindAddr)

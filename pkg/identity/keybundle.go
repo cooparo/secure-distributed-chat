@@ -187,7 +187,7 @@ func (kb *KeyBundle) Sign(privateKey ed25519.PrivateKey) (*SignedKeyBundle, erro
 	signature := ed25519.Sign(privateKey, data)
 
 	skb := SignedKeyBundle{
-		KeyBundle: kb,
+		Inner:     kb,
 		Signature: signature,
 	}
 
@@ -195,7 +195,7 @@ func (kb *KeyBundle) Sign(privateKey ed25519.PrivateKey) (*SignedKeyBundle, erro
 }
 
 type SignedKeyBundle struct {
-	KeyBundle *KeyBundle
+	Inner     *KeyBundle
 	Signature Signature
 }
 
@@ -203,12 +203,12 @@ func (skb *SignedKeyBundle) AppendBinary(b []byte) ([]byte, error) {
 	if err := skb.Signature.CheckSize(); err != nil {
 		return nil, err
 	}
-	if skb.KeyBundle == nil {
+	if skb.Inner == nil {
 		return nil, &errs.IsNilError{SubjectName: "KeyBundle"}
 	}
 
-	// Encode KeyBundle
-	b, err := skb.KeyBundle.AppendBinary(b)
+	// Encode Inner
+	b, err := skb.Inner.AppendBinary(b)
 	if err != nil {
 		return nil, err
 	}
@@ -239,14 +239,14 @@ func (skb *SignedKeyBundle) UnmarshalBinary(b []byte) error {
 		}
 	}
 
-	// Decode KeyBundle
+	// Decode Inner
 	kbByte := make([]byte, SizeKeyBundle)
 	copy(kbByte, buf[:SizeKeyBundle])
 	var kb KeyBundle
 	if err := kb.UnmarshalBinary(kbByte); err != nil {
 		return err
 	}
-	skb.KeyBundle = &kb
+	skb.Inner = &kb
 
 	buf = buf[SizeKeyBundle:]
 
@@ -262,18 +262,18 @@ func (skb *SignedKeyBundle) UnmarshalBinary(b []byte) error {
 // and if the signature is invalid
 func (skb *SignedKeyBundle) Verify() error {
 	if err := skb.Signature.CheckSize(); err != nil {
-		return errors.Join(&VerificationError{SubjectName: "SignedKeyBundle"}, err)
+		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyBundle"}, err)
 	}
 
-	data, err := skb.KeyBundle.MarshalBinary()
+	data, err := skb.Inner.MarshalBinary()
 	if err != nil {
-		return errors.Join(&VerificationError{SubjectName: "SignedKeyBundle"}, err)
+		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyBundle"}, err)
 	}
 
-	if !ed25519.Verify(skb.KeyBundle.SigningKey, data, skb.Signature) {
+	if !ed25519.Verify(skb.Inner.SigningKey, data, skb.Signature) {
 		return &SignatureVerificationError{
-			SubjectName: "SignedKeyBundle",
-			SigningKey:  skb.KeyBundle.SigningKey,
+			SubjectName: "Signed Key Bundle",
+			SigningKey:  skb.Inner.SigningKey,
 			Signature:   skb.Signature,
 		}
 	}

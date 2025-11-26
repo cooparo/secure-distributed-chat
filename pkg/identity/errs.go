@@ -3,6 +3,8 @@ package identity
 import (
 	"crypto/ed25519"
 	"fmt"
+
+	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 )
 
 // Address Mismatch Error
@@ -14,15 +16,6 @@ type AddressMismatchError struct {
 
 func (e *AddressMismatchError) Error() string {
 	return fmt.Sprintf("%s has address %s but expected %s", e.SubjectName, e.SubjectActualAddress, e.SubjectExpectedAddress)
-}
-
-// Verification Error
-type VerificationError struct {
-	SubjectName string
-}
-
-func (e *VerificationError) Error() string {
-	return fmt.Sprintf("%s failed verification", e.SubjectName)
 }
 
 // Signature Verification Error
@@ -37,7 +30,7 @@ func (e *SignatureVerificationError) Error() string {
 }
 
 func (e *SignatureVerificationError) Unwrap() error {
-	return &VerificationError{
+	return &errs.VerificationError{
 		SubjectName: e.SubjectName,
 	}
 }

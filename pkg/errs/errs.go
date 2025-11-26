@@ -69,3 +69,12 @@ type IsNilError struct {
 func (e *IsNilError) Error() string {
 	return fmt.Sprintf("%s is nil", e.SubjectName)
 }
+
+// Verification Error
+type VerificationError struct {
+	SubjectName string
+}
+
+func (e *VerificationError) Error() string {
+	return fmt.Sprintf("%s failed verification", e.SubjectName)
+}

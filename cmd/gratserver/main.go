@@ -8,8 +8,10 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/cooparo/secure-distributed-chat/pkg/logger"
-	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
+	"github.com/cooparo/secure-distributed-chat/internal/logger"
+	"github.com/cooparo/secure-distributed-chat/internal/nethandle"
+	"github.com/cooparo/secure-distributed-chat/pkg/identity"
+	"github.com/cooparo/secure-distributed-chat/pkg/session"
 	"github.com/spf13/cobra"
 )
 
@@ -33,6 +35,10 @@ var rootCmd = &cobra.Command{
 		// WaitGroup semaphore for connection count
 		var wg sync.WaitGroup
 
+		// Session Manager
+		// TODO: Real Address and Key Bundle
+		mgr := session.NewSessionManager(identity.IdentityAddress{0x41}, &identity.PrivateKeyBundle{})
+
 		bindAddr := fmt.Sprintf("[%s]:%d", addr, port)
 		logger.Get().Infof("Starting server on %s", bindAddr)
 		ln, err := net.Listen("tcp", bindAddr)
@@ -40,9 +46,10 @@ var rootCmd = &cobra.Command{
 			logger.Get().Fatalf("Got error making TCP listener: %s", err.Error())
 		}
 
-		netprotocol.ServeListener(ctx, ln, &wg)
+		nethandle.ServeListener(ctx, ln, &wg, mgr)
 
 		// TODO: setup IPC socket
+		// TODO: call ipchandle.ServeListener(ctx, ln, &wg, mgr)
 
 		// Wait for shutdown
 		<-ctx.Done()

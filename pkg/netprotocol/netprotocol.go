@@ -44,7 +44,7 @@ func (mh *MainHeader) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeMainHeader {
-		return &errs.ErrInvalidSize{
+		return &errs.SizeError{
 			SubjectName:         "MainHeader",
 			SubjectActualSize:   len(buf),
 			SubjectExpectedSize: SizeMainHeader,

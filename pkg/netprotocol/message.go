@@ -29,17 +29,17 @@ func (mh *MessageHeader) AppendBinary(b []byte) ([]byte, error) {
 		return nil, err
 	}
 	if mh.RatchetKey == nil {
-		return nil, &errs.ErrIsNil{SubjectName: "RatchetKey"}
+		return nil, &errs.IsNilErr{SubjectName: "RatchetKey"}
 	}
 	if mh.RatchetKey.Curve() != ecdh.X25519() {
-		return nil, &errs.ErrInvalidDHCurve{
+		return nil, &errs.DHCurveError{
 			SubjectName:          "RatchetKey",
 			SubjectActualCurve:   mh.RatchetKey.Curve(),
 			SubjectExpectedCurve: ecdh.X25519(),
 		}
 	}
 	if len(mh.Nonce) != SizeNonce {
-		return nil, &errs.ErrInvalidSize{
+		return nil, &errs.SizeError{
 			SubjectName:         "Nonce",
 			SubjectActualSize:   len(mh.Nonce),
 			SubjectExpectedSize: SizeNonce,
@@ -83,7 +83,7 @@ func (mh *MessageHeader) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeMessageHeader {
-		return &errs.ErrInvalidSize{
+		return &errs.SizeError{
 			SubjectName:         "MessageHeader",
 			SubjectActualSize:   len(buf),
 			SubjectExpectedSize: SizeMessageHeader,
@@ -135,10 +135,10 @@ type Message struct {
 
 func (m *Message) AppendBinary(b []byte) ([]byte, error) {
 	if m.Header == nil {
-		return nil, &errs.ErrIsNil{SubjectName: "Header"}
+		return nil, &errs.IsNilErr{SubjectName: "Header"}
 	}
 	if len(m.Data) != int(m.Header.DataLength) {
-		return nil, &errs.ErrInvalidSize{
+		return nil, &errs.SizeError{
 			SubjectName:         "Data",
 			SubjectActualSize:   len(m.Data),
 			SubjectExpectedSize: int(m.Header.DataLength),
@@ -159,7 +159,7 @@ func (m *Message) AppendBinary(b []byte) ([]byte, error) {
 
 func (m *Message) MarshalBinary() ([]byte, error) {
 	if m.Header == nil {
-		return nil, &errs.ErrIsNil{SubjectName: "Header"}
+		return nil, &errs.IsNilErr{SubjectName: "Header"}
 	}
 	sizeMessage := SizeMessageHeader + m.Header.DataLength
 	b, err := m.AppendBinary(make([]byte, 0, sizeMessage))
@@ -174,7 +174,7 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) < SizeMessageHeader {
-		return &errs.ErrMinimumSize{
+		return &errs.MinSizeErr{
 			SubjectName:         "Message",
 			SubjectActualSize:   len(buf),
 			SubjectExpectedSize: SizeMessageHeader,
@@ -193,7 +193,7 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 	buf = buf[SizeMessageHeader:]
 
 	if len(buf) != int(m.Header.DataLength) {
-		return &errs.ErrInvalidSize{
+		return &errs.SizeError{
 			SubjectName:         "Data",
 			SubjectActualSize:   len(buf),
 			SubjectExpectedSize: int(m.Header.DataLength),

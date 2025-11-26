@@ -21,7 +21,7 @@ type NetAddressUpdate struct {
 
 func (nau *NetAddressUpdate) AppendBinary(b []byte) ([]byte, error) {
 	if len(nau.NetAddress) != SizeNetAddress {
-		return nil, &errs.ErrInvalidSize{
+		return nil, &errs.SizeError{
 			SubjectName:         "NetAddress",
 			SubjectActualSize:   len(nau.NetAddress),
 			SubjectExpectedSize: SizeNetAddress,
@@ -59,7 +59,7 @@ func (nau *NetAddressUpdate) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeNetAddressUpdate {
-		return &errs.ErrInvalidSize{
+		return &errs.SizeError{
 			SubjectName:         "NetAddressUpdate",
 			SubjectActualSize:   len(buf),
 			SubjectExpectedSize: SizeNetAddressUpdate,
@@ -112,7 +112,7 @@ func (snau *SignedNetAddressUpdate) AppendBinary(b []byte) ([]byte, error) {
 		return nil, err
 	}
 	if snau.NetAddressUpdate == nil {
-		return nil, &errs.ErrIsNil{SubjectName: "NetAddressUpdate"}
+		return nil, &errs.IsNilErr{SubjectName: "NetAddressUpdate"}
 	}
 
 	// Encode NetAddressUpdate
@@ -140,7 +140,7 @@ func (snau *SignedNetAddressUpdate) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeSignedNetAddressUpdate {
-		return &errs.ErrInvalidSize{
+		return &errs.SizeError{
 			SubjectName:         "SignedNetAddressUpdate",
 			SubjectActualSize:   len(buf),
 			SubjectExpectedSize: SizeSignedNetAddressUpdate,

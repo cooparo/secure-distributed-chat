@@ -7,18 +7,18 @@ import (
 )
 
 // Invalid Receiver Error
-type ErrInvalidRecv struct {
+type InvalidRecvErr struct {
 	SubjectName         string
 	SubjectActualRecv   identity.IdentityAddress
 	SubjectExpectedRecv identity.IdentityAddress
 }
 
-func (e *ErrInvalidRecv) Error() string {
+func (e *InvalidRecvErr) Error() string {
 	return fmt.Sprintf("Invalid receiver for %s: %s (expected %s)", e.SubjectName, e.SubjectActualRecv.Base32(), e.SubjectExpectedRecv.Base32())
 }
 
-func (e *ErrInvalidRecv) Unwrap() error {
-	return &identity.ErrAddressMismatch{
+func (e *InvalidRecvErr) Unwrap() error {
+	return &identity.AddressMismatchError{
 		SubjectName:            e.SubjectName,
 		SubjectActualAddress:   e.SubjectActualRecv,
 		SubjectExpectedAddress: e.SubjectExpectedRecv,
@@ -26,17 +26,17 @@ func (e *ErrInvalidRecv) Unwrap() error {
 }
 
 // Calculated Address Mismatch Error
-type ErrCalcAddrMismatch struct {
+type CalcAddrMismatchError struct {
 	SubjectActualAddress  identity.IdentityAddress
 	SubjectExpectedAddess identity.IdentityAddress
 }
 
-func (e *ErrCalcAddrMismatch) Error() string {
+func (e *CalcAddrMismatchError) Error() string {
 	return fmt.Sprintf("Calculated Address %s doesn't match %s", e.SubjectActualAddress, e.SubjectExpectedAddess)
 }
 
-func (e *ErrCalcAddrMismatch) Unwrap() error {
-	return &identity.ErrAddressMismatch{
+func (e *CalcAddrMismatchError) Unwrap() error {
+	return &identity.AddressMismatchError{
 		SubjectName:            "Address Calculator",
 		SubjectActualAddress:   e.SubjectActualAddress,
 		SubjectExpectedAddress: e.SubjectExpectedAddess,

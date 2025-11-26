@@ -23,7 +23,7 @@ var packetTypeName = map[netprotocol.PacketType]string{
 	netprotocol.PacketTypeKeyExchangeResponse: "Key Exchange Response",
 }
 
-type packetHandler func(net.Conn, *session.SessionManager) error
+type packetHandler func(context.Context, net.Conn, *session.SessionManager) error
 
 var packetTypeHandler = map[netprotocol.PacketType]packetHandler{
 	netprotocol.PacketTypeHeartbeat:           HandleHeartbeat,
@@ -47,7 +47,7 @@ func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr
 					return
 				default:
 				}
-				logger.Get().Errorf("Accept error: %s", err.Error())
+				logger.Get().Warnf("Accept error: %s", err.Error())
 				continue
 			}
 			handleConn(ctx, conn, wg, mgr)
@@ -95,19 +95,19 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *ses
 
 			packetName, ok := packetTypeName[mh.PacketType]
 			if !ok {
-				logger.Get().Errorf("Unknown PacketType with id %#x", mh.PacketType)
+				logger.Get().Warnf("Unknown PacketType with id %#x", mh.PacketType)
 				return
 			}
 
-			logger.Get().Debugf("Got packet with version %d and PacketType %s (%#x)", mh.Version, packetName, mh.PacketType)
+			logger.Get().Infof("Got packet with version %d and PacketType %s (%#x)", mh.Version, packetName, mh.PacketType)
 
 			handler, ok := packetTypeHandler[mh.PacketType]
 			if !ok {
-				logger.Get().Errorf("No handler for PacketType %s (%#x)", packetName, mh.PacketType)
+				logger.Get().Warnf("No handler for PacketType %s (%#x)", packetName, mh.PacketType)
 				return
 			}
 
-			err = handler(conn, mgr)
+			err = handler(ctx, conn, mgr)
 			if err != nil {
 				logger.Get().Errorf("Got error handling PacketType %s (%#x) from %s: %s", packetName, mh.PacketType, conn.RemoteAddr().String(), err.Error())
 				return

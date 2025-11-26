@@ -49,6 +49,7 @@ var rootCmd = &cobra.Command{
 		nethandle.ServeListener(ctx, ln, &wg, mgr)
 
 		// TODO: setup IPC socket
+		// TODO: call ipchandle.ServeListener(ctx, ln, &wg, mgr)
 
 		// Wait for shutdown
 		<-ctx.Done()

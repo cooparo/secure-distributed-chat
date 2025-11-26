@@ -1,6 +1,7 @@
 package nethandle
 
 import (
+	"context"
 	"net"
 
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
@@ -8,7 +9,7 @@ import (
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
-func HandleMessage(conn net.Conn, mgr *session.SessionManager) error {
+func HandleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
 	mhByte := make([]byte, netprotocol.SizeMessageHeader)
 	if _, err := conn.Read(mhByte); err != nil {
 		return err

@@ -1,6 +1,7 @@
 package nethandle
 
 import (
+	"context"
 	"crypto/ecdh"
 	"crypto/rand"
 	"crypto/sha3"
@@ -12,9 +13,7 @@ import (
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
-// TODO: Return more errors to the callers
-
-func HandleKeyExchangeRequest(conn net.Conn, mgr *session.SessionManager) error {
+func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
 	reqByte := make([]byte, netprotocol.SizeKeyExchangeRequest)
 	if _, err := conn.Read(reqByte); err != nil {
 		return err
@@ -28,7 +27,11 @@ func HandleKeyExchangeRequest(conn net.Conn, mgr *session.SessionManager) error 
 
 	if !mgr.Address.Equal(req.RecvIDAddr) {
 		logger.Get().Debugf("Key Exchange Request is for %s, but we are %s", req.RecvIDAddr.Base32(), mgr.Address.Base32())
-		return nil
+		return &ErrInvalidRecv{
+			SubjectName:         "KeyExchangeRequest",
+			SubjectActualRecv:   req.RecvIDAddr,
+			SubjectExpectedRecv: mgr.Address,
+		}
 	}
 
 	calcAddress, err := req.SignedKeyBundle.KeyBundle.Address()
@@ -39,7 +42,10 @@ func HandleKeyExchangeRequest(conn net.Conn, mgr *session.SessionManager) error 
 
 	if !calcAddress.Equal(req.SendIDAddr) {
 		logger.Get().Warnf("Address %s doesn't match the calculated address %s", req.SendIDAddr.Base32(), calcAddress.Base32())
-		return nil
+		return &ErrCalcAddrMismatch{
+			SubjectActualAddress:  req.SendIDAddr,
+			SubjectExpectedAddess: calcAddress,
+		}
 	}
 
 	if !req.SignedKeyBundle.Verify() {
@@ -103,7 +109,7 @@ func HandleKeyExchangeRequest(conn net.Conn, mgr *session.SessionManager) error 
 	return nil
 }
 
-func HandleKeyExchangeResponse(conn net.Conn, mgr *session.SessionManager) error {
+func HandleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
 	respByte := make([]byte, netprotocol.SizeKeyExchangeResponse)
 	if _, err := conn.Read(respByte); err != nil {
 		return err
@@ -116,8 +122,12 @@ func HandleKeyExchangeResponse(conn net.Conn, mgr *session.SessionManager) error
 	logger.Get().Infof("Key Exchange Response from %s to %s", resp.SendIDAddr.Base32(), resp.RecvIDAddr.Base32())
 
 	if !mgr.Address.Equal(resp.RecvIDAddr) {
-		logger.Get().Debugf("Key Exchange Response is for %s, but we are %s", resp.RecvIDAddr.Base32(), mgr.Address.Base32())
-		return nil
+		logger.Get().Warnf("Key Exchange Response is for %s, but we are %s", resp.RecvIDAddr.Base32(), mgr.Address.Base32())
+		return &ErrInvalidRecv{
+			SubjectName:         "KeyExchangeResponse",
+			SubjectActualRecv:   resp.RecvIDAddr,
+			SubjectExpectedRecv: mgr.Address,
+		}
 	}
 
 	sess, ok := mgr.Get(resp.SendIDAddr.Base32())

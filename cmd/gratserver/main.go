@@ -19,6 +19,7 @@ var (
 	verbose bool
 	addr    string
 	port    uint
+	keyFile string
 )
 
 var rootCmd = &cobra.Command{
@@ -35,9 +36,20 @@ var rootCmd = &cobra.Command{
 		// WaitGroup semaphore for connection count
 		var wg sync.WaitGroup
 
+		var privKeyBundle identity.PrivateKeyBundle
+		if err := privKeyBundle.Load(keyFile); err != nil {
+			logger.Get().Fatalf("Got error reading private key file: %s", err.Error())
+		}
+
+		address, err := privKeyBundle.Public().Address()
+		if err != nil {
+			logger.Get().Fatalf("Got error calculating identity address: %s", err.Error())
+		}
+
+		logger.Get().Infof("Our address is %s", address.Base32())
+
 		// Session Manager
-		// TODO: Real Address and Key Bundle
-		mgr := session.NewSessionManager(identity.IdentityAddress{0x41}, &identity.PrivateKeyBundle{})
+		mgr := session.NewSessionManager(address, &privKeyBundle)
 
 		bindAddr := fmt.Sprintf("[%s]:%d", addr, port)
 		logger.Get().Infof("Starting server on %s", bindAddr)
@@ -76,4 +88,5 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging")
 	rootCmd.Flags().StringVarP(&addr, "address", "a", "::", "Address to listen on")
 	rootCmd.Flags().UintVarP(&port, "port", "p", 1337, "Port to listen on")
+	rootCmd.Flags().StringVarP(&keyFile, "keyfile", "k", "./private.key", "Private key file")
 }

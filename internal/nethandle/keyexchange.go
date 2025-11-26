@@ -27,7 +27,7 @@ func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 
 	if !mgr.Address.Equal(req.RecvIDAddr) {
 		logger.Get().Debugf("Key Exchange Request is for %s, but we are %s", req.RecvIDAddr.Base32(), mgr.Address.Base32())
-		return &ErrInvalidRecv{
+		return &InvalidRecvError{
 			SubjectName:         "KeyExchangeRequest",
 			SubjectActualRecv:   req.RecvIDAddr,
 			SubjectExpectedRecv: mgr.Address,
@@ -42,7 +42,7 @@ func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 
 	if !calcAddress.Equal(req.SendIDAddr) {
 		logger.Get().Warnf("Address %s doesn't match the calculated address %s", req.SendIDAddr.Base32(), calcAddress.Base32())
-		return &ErrCalcAddrMismatch{
+		return &CalcAddrMismatchError{
 			SubjectActualAddress:  req.SendIDAddr,
 			SubjectExpectedAddess: calcAddress,
 		}
@@ -123,7 +123,7 @@ func HandleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.
 
 	if !mgr.Address.Equal(resp.RecvIDAddr) {
 		logger.Get().Warnf("Key Exchange Response is for %s, but we are %s", resp.RecvIDAddr.Base32(), mgr.Address.Base32())
-		return &ErrInvalidRecv{
+		return &InvalidRecvError{
 			SubjectName:         "KeyExchangeResponse",
 			SubjectActualRecv:   resp.RecvIDAddr,
 			SubjectExpectedRecv: mgr.Address,

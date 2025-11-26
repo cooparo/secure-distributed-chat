@@ -30,16 +30,16 @@ func (req *KeyExchangeRequest) AppendBinary(b []byte) ([]byte, error) {
 		return nil, err
 	}
 	if req.SignedKeyBundle == nil {
-		return nil, &errs.ErrIsNil{SubjectName: "SignedKeyBundle"}
+		return nil, &errs.IsNilError{SubjectName: "SignedKeyBundle"}
 	}
 	if req.SignedNetAddressUpdate == nil {
-		return nil, &errs.ErrIsNil{SubjectName: "SignedNetAddressUpdate"}
+		return nil, &errs.IsNilError{SubjectName: "SignedNetAddressUpdate"}
 	}
 	if req.EphemeralKey == nil {
-		return nil, &errs.ErrIsNil{SubjectName: "EphemeralKey"}
+		return nil, &errs.IsNilError{SubjectName: "EphemeralKey"}
 	}
 	if req.EphemeralKey.Curve() != ecdh.X25519() {
-		return nil, &errs.ErrInvalidDHCurve{
+		return nil, &errs.DHCurveError{
 			SubjectName:          "EphemeralKey",
 			SubjectActualCurve:   req.EphemeralKey.Curve(),
 			SubjectExpectedCurve: ecdh.X25519(),
@@ -89,7 +89,7 @@ func (req *KeyExchangeRequest) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeKeyExchangeRequest {
-		return &errs.ErrInvalidSize{
+		return &errs.SizeError{
 			SubjectName:         "KeyExchangeRequest",
 			SubjectActualSize:   len(buf),
 			SubjectExpectedSize: SizeKeyExchangeRequest,
@@ -162,20 +162,20 @@ func (resp *KeyExchangeResponse) AppendBinary(b []byte) ([]byte, error) {
 		return nil, err
 	}
 	if resp.EphemeralKey == nil {
-		return nil, &errs.ErrIsNil{SubjectName: "EphemeralKey"}
+		return nil, &errs.IsNilError{SubjectName: "EphemeralKey"}
 	}
 	if resp.EphemeralKey.Curve() != ecdh.X25519() {
-		return nil, &errs.ErrInvalidDHCurve{
+		return nil, &errs.DHCurveError{
 			SubjectName:          "EphemeralKey",
 			SubjectActualCurve:   resp.EphemeralKey.Curve(),
 			SubjectExpectedCurve: ecdh.X25519(),
 		}
 	}
 	if resp.RatchetKey == nil {
-		return nil, &errs.ErrIsNil{SubjectName: "RatchetKey"}
+		return nil, &errs.IsNilError{SubjectName: "RatchetKey"}
 	}
 	if resp.RatchetKey.Curve() != ecdh.X25519() {
-		return nil, &errs.ErrInvalidDHCurve{
+		return nil, &errs.DHCurveError{
 			SubjectName:          "RatchetKey",
 			SubjectActualCurve:   resp.RatchetKey.Curve(),
 			SubjectExpectedCurve: ecdh.X25519(),
@@ -216,7 +216,7 @@ func (resp *KeyExchangeResponse) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeKeyExchangeResponse {
-		return &errs.ErrInvalidSize{
+		return &errs.SizeError{
 			SubjectName:         "KeyExchangeResponse",
 			SubjectActualSize:   len(buf),
 			SubjectExpectedSize: SizeKeyExchangeResponse,

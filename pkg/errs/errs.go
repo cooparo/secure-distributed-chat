@@ -6,29 +6,29 @@ import (
 )
 
 // Invalid Size Error
-type ErrInvalidSize struct {
+type SizeError struct {
 	SubjectName         string
 	SubjectActualSize   int
 	SubjectExpectedSize int
 }
 
-func (e *ErrInvalidSize) Error() string {
+func (e *SizeError) Error() string {
 	return fmt.Sprintf("Invalid size of %s: %d (expected %d)", e.SubjectName, e.SubjectActualSize, e.SubjectExpectedSize)
 }
 
 // Minimum Size Error
-type ErrMinimumSize struct {
+type MinSizeError struct {
 	SubjectName         string
 	SubjectActualSize   int
 	SubjectExpectedSize int
 }
 
-func (e *ErrMinimumSize) Error() string {
+func (e *MinSizeError) Error() string {
 	return fmt.Sprintf("Size of %s is too small: %d (expected %d)", e.SubjectName, e.SubjectActualSize, e.SubjectExpectedSize)
 }
 
-func (e *ErrMinimumSize) Unwrap() error {
-	return &ErrInvalidSize{
+func (e *MinSizeError) Unwrap() error {
+	return &SizeError{
 		SubjectName:         e.SubjectName,
 		SubjectActualSize:   e.SubjectActualSize,
 		SubjectExpectedSize: e.SubjectExpectedSize,
@@ -36,17 +36,17 @@ func (e *ErrMinimumSize) Unwrap() error {
 }
 
 // Diffie-Hellman Curve Error
-type ErrInvalidDHCurve struct {
+type DHCurveError struct {
 	SubjectName          string
 	SubjectActualCurve   ecdh.Curve
 	SubjectExpectedCurve ecdh.Curve
 }
 
-func (e *ErrInvalidDHCurve) Error() string {
+func (e *DHCurveError) Error() string {
 	return fmt.Sprintf("Invalid Diffie-Hellman curve on %s: %s (excepted %s)", e.SubjectName, e.curveName(e.SubjectActualCurve), e.curveName(e.SubjectExpectedCurve))
 }
 
-func (e *ErrInvalidDHCurve) curveName(curve ecdh.Curve) string {
+func (e *DHCurveError) curveName(curve ecdh.Curve) string {
 	switch curve {
 	case ecdh.P256():
 		return "P256"
@@ -62,10 +62,10 @@ func (e *ErrInvalidDHCurve) curveName(curve ecdh.Curve) string {
 }
 
 // Is Nil Error
-type ErrIsNil struct {
+type IsNilError struct {
 	SubjectName string
 }
 
-func (e *ErrIsNil) Error() string {
+func (e *IsNilError) Error() string {
 	return fmt.Sprintf("%s is nil", e.SubjectName)
 }

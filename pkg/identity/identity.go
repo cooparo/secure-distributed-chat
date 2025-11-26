@@ -30,7 +30,7 @@ func (a IdentityAddress) Equal(o IdentityAddress) bool {
 
 func (a IdentityAddress) CheckSize() error {
 	if len(a) != SizeIdentityAddress {
-		return &errs.ErrInvalidSize{
+		return &errs.SizeError{
 			SubjectName:         "IdentityAddress",
 			SubjectActualSize:   len(a),
 			SubjectExpectedSize: SizeIdentityAddress,
@@ -43,7 +43,7 @@ type Signature []byte
 
 func (s Signature) CheckSize() error {
 	if len(s) != SizeSignature {
-		return &errs.ErrInvalidSize{
+		return &errs.SizeError{
 			SubjectName:         "Signature",
 			SubjectActualSize:   len(s),
 			SubjectExpectedSize: SizeSignature,

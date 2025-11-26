@@ -32,7 +32,7 @@ type CalcAddrMismatchError struct {
 }
 
 func (e *CalcAddrMismatchError) Error() string {
-	return fmt.Sprintf("Calculated Address %s doesn't match %s", e.SubjectActualAddress, e.SubjectExpectedAddess)
+	return fmt.Sprintf("Calculated address %s doesn't match %s", e.SubjectActualAddress, e.SubjectExpectedAddess)
 }
 
 func (e *CalcAddrMismatchError) Unwrap() error {
@@ -41,4 +41,50 @@ func (e *CalcAddrMismatchError) Unwrap() error {
 		SubjectActualAddress:   e.SubjectActualAddress,
 		SubjectExpectedAddress: e.SubjectExpectedAddess,
 	}
+}
+
+// Unasked Response Error
+type UnaskedResponseError struct {
+	SendAddress identity.IdentityAddress
+}
+
+func (e *UnaskedResponseError) Error() string {
+	return fmt.Sprintf("Unasked response from %s", e.SendAddress.Base32())
+}
+
+// No Key Exchange Error
+type NoKeyExchangeError struct {
+	PeerAddress identity.IdentityAddress
+}
+
+func (e *NoKeyExchangeError) Error() string {
+	return fmt.Sprintf("No key exchange in process with %s", e.PeerAddress.CheckSize())
+}
+
+func (e *NoKeyExchangeError) Unwrap() error {
+	return &UnaskedResponseError{
+		SendAddress: e.PeerAddress,
+	}
+}
+
+// Session Error
+type SessionError struct {
+	PeerAddress identity.IdentityAddress
+}
+
+func (e *SessionError) Error() string {
+	return fmt.Sprintf("Error with session %s", e.PeerAddress.Base32())
+}
+
+// No Session Error
+type NoSessionError struct {
+	PeerAddress identity.IdentityAddress
+}
+
+func (e *NoSessionError) Error() string {
+	return fmt.Sprintf("No session with %s", e.PeerAddress.Base32())
+}
+
+func (e *NoSessionError) Unwrap() error {
+	return &SessionError{PeerAddress: e.PeerAddress}
 }

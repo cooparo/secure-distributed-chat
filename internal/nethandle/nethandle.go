@@ -109,7 +109,7 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *ses
 
 			err = handler(ctx, conn, mgr)
 			if err != nil {
-				logger.Get().Errorf("Got error handling PacketType %s (%#x) from %s: %s", packetName, mh.PacketType, conn.RemoteAddr().String(), err.Error())
+				logger.Get().Warnf("Got error handling PacketType %s (%#x) from %s: %s", packetName, mh.PacketType, conn.RemoteAddr().String(), err.Error())
 				return
 			}
 		}

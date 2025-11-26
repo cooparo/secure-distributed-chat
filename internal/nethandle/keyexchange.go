@@ -36,7 +36,7 @@ func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 
 	calcAddress, err := req.SignedKeyBundle.KeyBundle.Address()
 	if err != nil {
-		logger.Get().Errorf("Got error calculating address from KeyBundle: %s", err.Error())
+		logger.Get().Errorf("Got error calculating address from Key Bundle: %s", err.Error())
 		return err
 	}
 
@@ -48,9 +48,9 @@ func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 		}
 	}
 
-	if !req.SignedKeyBundle.Verify() {
+	if err := req.SignedKeyBundle.Verify(); err != nil {
 		logger.Get().Warn("KeyBundle failed verification")
-		return nil
+		return err
 	}
 
 	// TODO: verify Request
@@ -122,9 +122,8 @@ func HandleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.
 	logger.Get().Infof("Key Exchange Response from %s to %s", resp.SendIDAddr.Base32(), resp.RecvIDAddr.Base32())
 
 	if !mgr.Address.Equal(resp.RecvIDAddr) {
-		logger.Get().Warnf("Key Exchange Response is for %s, but we are %s", resp.RecvIDAddr.Base32(), mgr.Address.Base32())
 		return &InvalidRecvError{
-			SubjectName:         "KeyExchangeResponse",
+			SubjectName:         "Key Exchange Response",
 			SubjectActualRecv:   resp.RecvIDAddr,
 			SubjectExpectedRecv: mgr.Address,
 		}
@@ -133,13 +132,11 @@ func HandleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.
 	sess, ok := mgr.Get(resp.SendIDAddr.Base32())
 
 	if !ok {
-		logger.Get().Debug("No session found, ignoring...")
-		return nil
+		return &NoSessionError{PeerAddress: resp.SendIDAddr}
 	}
 
 	if sess.EphemeralExchangeKey == nil {
-		logger.Get().Debugf("No Key Exchange in process, ignoring...")
-		return nil
+		return &NoKeyExchangeError{PeerAddress: resp.SendIDAddr}
 	}
 
 	// TODO: verify signature on response

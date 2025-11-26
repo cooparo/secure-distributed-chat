@@ -4,6 +4,7 @@ import (
 	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/sha3"
+	"errors"
 
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 )
@@ -259,15 +260,23 @@ func (skb *SignedKeyBundle) UnmarshalBinary(b []byte) error {
 // Verify the signed bundle
 // Returns false if the internal Sizes are wrong
 // and if the signature is invalid
-func (skb *SignedKeyBundle) Verify() bool {
+func (skb *SignedKeyBundle) Verify() error {
 	if err := skb.Signature.CheckSize(); err != nil {
-		return false
+		return errors.Join(&VerificationError{SubjectName: "SignedKeyBundle"}, err)
 	}
 
 	data, err := skb.KeyBundle.MarshalBinary()
 	if err != nil {
-		return false
+		return errors.Join(&VerificationError{SubjectName: "SignedKeyBundle"}, err)
 	}
 
-	return ed25519.Verify(skb.KeyBundle.SigningKey, data, skb.Signature)
+	if !ed25519.Verify(skb.KeyBundle.SigningKey, data, skb.Signature) {
+		return &SignatureVerificationError{
+			SubjectName: "SignedKeyBundle",
+			SigningKey:  skb.KeyBundle.SigningKey,
+			Signature:   skb.Signature,
+		}
+	}
+
+	return nil
 }

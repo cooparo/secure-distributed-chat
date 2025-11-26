@@ -3,7 +3,6 @@ package doubleratchet
 import (
 	"crypto/ecdh"
 	"crypto/rand"
-	"fmt"
 
 	"github.com/cooparo/secure-distributed-chat/pkg/doubleratchet/kdfchain"
 )
@@ -108,7 +107,7 @@ func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) error {
 
 func (r *DoubleRatchet) Encrypt(plaintext, associatedData []byte) ([]byte, []byte, error) {
 	if r.SendChain == nil {
-		return nil, nil, fmt.Errorf("Sending chain is initialized, need to receive first")
+		return nil, nil, &UninitializedChainError{ChainName: "Sending"}
 	}
 
 	key, err := r.SendChain.Step()

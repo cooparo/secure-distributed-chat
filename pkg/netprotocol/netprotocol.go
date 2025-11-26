@@ -1,10 +1,15 @@
 package netprotocol
 
-import (
-	"encoding/binary"
-	"io"
+import "github.com/cooparo/secure-distributed-chat/pkg/errs"
+
+const (
+	SizeRatchetKey = 32
+	SizeVersion    = 1
+	SizePacketType = 2
+	SizeMainHeader = SizeVersion + SizePacketType
 )
 
+type Version uint8
 type PacketType uint8
 
 const (
@@ -15,25 +20,44 @@ const (
 )
 
 type MainHeader struct {
-	Version    uint8
+	Version    Version
 	PacketType PacketType
 }
 
-func (h *MainHeader) Write(w io.Writer) error {
-	err := binary.Write(w, binary.BigEndian, h)
-	if err != nil {
-		return err
-	}
+func (mh *MainHeader) AppendBinary(b []byte) ([]byte, error) {
+	// Encode Version
+	b = append(b, byte(mh.Version))
 
-	return nil
+	// Encode PacketType
+	b = append(b, byte(mh.PacketType))
+
+	return b, nil
 }
 
-func ReadMainHeader(r io.Reader) (*MainHeader, error) {
-	h := MainHeader{}
-	err := binary.Read(r, binary.BigEndian, &h)
-	if err != nil {
-		return nil, err
+func (mh *MainHeader) MarshalBinary() ([]byte, error) {
+	b, _ := mh.AppendBinary(make([]byte, 0, SizeMainHeader))
+
+	return b, nil
+}
+
+func (mh *MainHeader) UnmarshalBinary(b []byte) error {
+	buf := b
+
+	if len(buf) != SizeMainHeader {
+		return &errs.ErrInvalidSize{
+			SubjectName:         "MainHeader",
+			SubjectActualSize:   len(buf),
+			SubjectExpectedSize: SizeMainHeader,
+		}
 	}
 
-	return &h, nil
+	// Decode Version
+	mh.Version = Version(b[0])
+
+	buf = buf[SizeVersion:]
+
+	// Decode PacketType
+	mh.PacketType = PacketType(b[0])
+
+	return nil
 }

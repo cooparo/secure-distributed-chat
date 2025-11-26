@@ -6,11 +6,13 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base32"
+
+	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 )
 
 const (
-	IdentityAddressSize = 20
-	SignatureSize       = 64
+	SizeIdentityAddress = 20
+	SizeSignature       = 64
 )
 
 type IdentityAddress []byte
@@ -24,6 +26,30 @@ func (a IdentityAddress) Base32() string {
 
 func (a IdentityAddress) Equal(o IdentityAddress) bool {
 	return bytes.Equal(a, o)
+}
+
+func (a IdentityAddress) CheckSize() error {
+	if len(a) != SizeIdentityAddress {
+		return &errs.ErrInvalidSize{
+			SubjectName:         "IdentityAddress",
+			SubjectActualSize:   len(a),
+			SubjectExpectedSize: SizeIdentityAddress,
+		}
+	}
+	return nil
+}
+
+type Signature []byte
+
+func (s Signature) CheckSize() error {
+	if len(s) != SizeSignature {
+		return &errs.ErrInvalidSize{
+			SubjectName:         "Signature",
+			SubjectActualSize:   len(s),
+			SubjectExpectedSize: SizeSignature,
+		}
+	}
+	return nil
 }
 
 func GenerateIdentity() (IdentityAddress, *SignedKeyBundle, error) {

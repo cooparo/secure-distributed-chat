@@ -15,15 +15,19 @@ import (
 // TODO: Return more errors to the callers
 
 func HandleKeyExchangeRequest(conn net.Conn, mgr *session.SessionManager) error {
-	req, err := netprotocol.ReadKeyExchangeRequest(conn)
-	if err != nil {
+	reqByte := make([]byte, netprotocol.SizeKeyExchangeRequest)
+	if _, err := conn.Read(reqByte); err != nil {
+		return err
+	}
+	var req netprotocol.KeyExchangeRequest
+	if err := req.UnmarshalBinary(reqByte); err != nil {
 		return err
 	}
 
-	logger.Get().Debugf("Key Exchange Request from %s to %s", req.SendIDAddr.Base32(), req.RecvIDAddr.Base32())
+	logger.Get().Infof("Key Exchange Request from %s to %s", req.SendIDAddr.Base32(), req.RecvIDAddr.Base32())
 
 	if !mgr.Address.Equal(req.RecvIDAddr) {
-		logger.Get().Debug("Key Exchange Request is not for us, ignoring...")
+		logger.Get().Debugf("Key Exchange Request is for %s, but we are %s", req.RecvIDAddr.Base32(), mgr.Address.Base32())
 		return nil
 	}
 
@@ -52,17 +56,21 @@ func HandleKeyExchangeRequest(conn net.Conn, mgr *session.SessionManager) error 
 		return err
 	}
 
+	secrets := make([]byte, 0, 64)
+
 	staticSecret, err := mgr.PrivateKeyBundle.DiffieHellmanPrivateKey.ECDH(req.SignedKeyBundle.KeyBundle.DiffieHellmanKey)
 	if err != nil {
 		return err
 	}
+	secrets = append(secrets, staticSecret...)
 
 	ephemeralSecret, err := ephemeralPrivateKey.ECDH(req.EphemeralKey)
 	if err != nil {
 		return err
 	}
+	secrets = append(secrets, ephemeralSecret...)
 
-	sharedSecret := sha3.Sum256(append(staticSecret, ephemeralSecret...))
+	sharedSecret := sha3.Sum256(secrets)
 
 	ratchet, err := doubleratchet.New(sharedSecret[:], nil)
 	if err != nil {
@@ -84,25 +92,33 @@ func HandleKeyExchangeRequest(conn net.Conn, mgr *session.SessionManager) error 
 		RatchetKey:   ratchet.OurKey.PublicKey(),
 	}
 
-	resp.Write(conn)
+	respByte, err := resp.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	if _, err := conn.Write(respByte); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func HandleKeyExchangeResponse(conn net.Conn, mgr *session.SessionManager) error {
-	resp, err := netprotocol.ReadKeyExchangeResponse(conn)
-	if err != nil {
+	respByte := make([]byte, netprotocol.SizeKeyExchangeResponse)
+	if _, err := conn.Read(respByte); err != nil {
+		return err
+	}
+	var resp netprotocol.KeyExchangeResponse
+	if err := resp.UnmarshalBinary(respByte); err != nil {
 		return err
 	}
 
-	logger.Get().Debugf("Key Exchange Response from %s to %s", resp.SendIDAddr.Base32(), resp.RecvIDAddr.Base32())
+	logger.Get().Infof("Key Exchange Response from %s to %s", resp.SendIDAddr.Base32(), resp.RecvIDAddr.Base32())
 
-	if mgr.Address.Equal(resp.RecvIDAddr) {
-		logger.Get().Debugf("Key Exchange Response is not for us, ignoring...")
+	if !mgr.Address.Equal(resp.RecvIDAddr) {
+		logger.Get().Debugf("Key Exchange Response is for %s, but we are %s", resp.RecvIDAddr.Base32(), mgr.Address.Base32())
 		return nil
 	}
-
-	// TODO: verify signature on response
 
 	sess, ok := mgr.Get(resp.SendIDAddr.Base32())
 
@@ -116,14 +132,23 @@ func HandleKeyExchangeResponse(conn net.Conn, mgr *session.SessionManager) error
 		return nil
 	}
 
+	// TODO: verify signature on response
+
+	secrets := make([]byte, 0, 64)
+
 	staticSecret, err := mgr.PrivateKeyBundle.DiffieHellmanPrivateKey.ECDH(sess.KeyBundle.DiffieHellmanKey)
+	if err != nil {
+		return err
+	}
+	secrets = append(secrets, staticSecret...)
 
 	ephemeralSecret, err := sess.EphemeralExchangeKey.ECDH(resp.EphemeralKey)
 	if err != nil {
 		return err
 	}
+	secrets = append(secrets, ephemeralSecret...)
 
-	sharedSecret := sha3.Sum256(append(staticSecret, ephemeralSecret...))
+	sharedSecret := sha3.Sum256(secrets)
 
 	ratchet, err := doubleratchet.New(sharedSecret[:], resp.RatchetKey)
 	if err != nil {

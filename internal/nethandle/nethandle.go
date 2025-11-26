@@ -68,7 +68,8 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *ses
 			default:
 			}
 			conn.SetReadDeadline(time.Now().Add(connTimeout))
-			header, err := netprotocol.ReadMainHeader(conn)
+			mhByte := make([]byte, netprotocol.SizeMainHeader)
+			_, err := conn.Read(mhByte)
 			if err != nil {
 				// Timeout
 				if errors.Is(err, os.ErrDeadlineExceeded) {
@@ -86,24 +87,29 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *ses
 				logger.Get().Errorf("Got error reading from %s: %s", conn.RemoteAddr().String(), err.Error())
 				return
 			}
-
-			packetName, ok := packetTypeName[header.PacketType]
-			if !ok {
-				logger.Get().Errorf("Unknown PacketType with id %#x", header.PacketType)
+			var mh netprotocol.MainHeader
+			if err := mh.UnmarshalBinary(mhByte); err != nil {
+				logger.Get().Errorf("Got an error ")
 				return
 			}
 
-			logger.Get().Debugf("Got packet with version %d and PacketType %s (%#x)", header.Version, packetName, header.PacketType)
-
-			handler, ok := packetTypeHandler[header.PacketType]
+			packetName, ok := packetTypeName[mh.PacketType]
 			if !ok {
-				logger.Get().Errorf("No handler for PacketType %s (%#x)", packetName, header.PacketType)
+				logger.Get().Errorf("Unknown PacketType with id %#x", mh.PacketType)
+				return
+			}
+
+			logger.Get().Debugf("Got packet with version %d and PacketType %s (%#x)", mh.Version, packetName, mh.PacketType)
+
+			handler, ok := packetTypeHandler[mh.PacketType]
+			if !ok {
+				logger.Get().Errorf("No handler for PacketType %s (%#x)", packetName, mh.PacketType)
 				return
 			}
 
 			err = handler(conn, mgr)
 			if err != nil {
-				logger.Get().Errorf("Got error handling PacketType %s (%#x) from %s: %s", packetName, header.PacketType, conn.RemoteAddr().String(), err.Error())
+				logger.Get().Errorf("Got error handling PacketType %s (%#x) from %s: %s", packetName, mh.PacketType, conn.RemoteAddr().String(), err.Error())
 				return
 			}
 		}

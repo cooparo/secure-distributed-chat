@@ -3,13 +3,15 @@ package identity
 import (
 	"crypto/ed25519"
 	"net"
+
+	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 )
 
 const (
-	TimestampSize              = 8
-	NetAddressSize             = 16
-	NetAddressUpdateSize       = TimestampSize + NetAddressSize
-	SignedNetAddressUpdateSize = NetAddressUpdateSize + SignatureSize
+	SizeTimestamp              = 8
+	SizeNetAddress             = 16
+	SizeNetAddressUpdate       = SizeTimestamp + SizeNetAddress
+	SizeSignedNetAddressUpdate = SizeNetAddressUpdate + SizeSignature
 )
 
 type NetAddressUpdate struct {
@@ -18,10 +20,11 @@ type NetAddressUpdate struct {
 }
 
 func (nau *NetAddressUpdate) AppendBinary(b []byte) ([]byte, error) {
-	if len(nau.NetAddress) != NetAddressSize {
-		return nil, &ErrInvalidSize{
-			SubjectName: "NetAddress",
-			SubjectSize: len(nau.NetAddress),
+	if len(nau.NetAddress) != SizeNetAddress {
+		return nil, &errs.ErrInvalidSize{
+			SubjectName:         "NetAddress",
+			SubjectActualSize:   len(nau.NetAddress),
+			SubjectExpectedSize: SizeNetAddress,
 		}
 	}
 
@@ -35,8 +38,7 @@ func (nau *NetAddressUpdate) AppendBinary(b []byte) ([]byte, error) {
 		byte(t>>24),
 		byte(t>>16),
 		byte(t>>8),
-		byte(t),
-	)
+		byte(t))
 
 	// Encode NetAddress
 	b = append(b, nau.NetAddress...)
@@ -45,7 +47,7 @@ func (nau *NetAddressUpdate) AppendBinary(b []byte) ([]byte, error) {
 }
 
 func (nau *NetAddressUpdate) MarshalBinary() ([]byte, error) {
-	b, err := nau.AppendBinary(make([]byte, NetAddressUpdateSize))
+	b, err := nau.AppendBinary(make([]byte, 0, SizeNetAddressUpdate))
 	if err != nil {
 		return nil, err
 	}
@@ -56,9 +58,12 @@ func (nau *NetAddressUpdate) MarshalBinary() ([]byte, error) {
 func (nau *NetAddressUpdate) UnmarshalBinary(b []byte) error {
 	buf := b
 
-	if len(buf) != NetAddressUpdateSize {
-		return &ErrInvalidSize{SubjectName: "NetAddressUpdate",
-			SubjectSize: len(buf)}
+	if len(buf) != SizeNetAddressUpdate {
+		return &errs.ErrInvalidSize{
+			SubjectName:         "NetAddressUpdate",
+			SubjectActualSize:   len(buf),
+			SubjectExpectedSize: SizeNetAddressUpdate,
+		}
 	}
 
 	// Decode Timestamp
@@ -72,10 +77,10 @@ func (nau *NetAddressUpdate) UnmarshalBinary(b []byte) error {
 		int64(b[0])<<56
 	nau.Timestamp = t
 
-	buf = buf[TimestampSize:]
+	buf = buf[SizeTimestamp:]
 
 	// Decode NetAddress
-	copy(nau.NetAddress, buf[:NetAddressUpdateSize])
+	copy(nau.NetAddress, buf[:SizeNetAddressUpdate])
 
 	return nil
 }
@@ -99,13 +104,15 @@ func (nau *NetAddressUpdate) Sign(privateKey ed25519.PrivateKey) (*SignedNetAddr
 
 type SignedNetAddressUpdate struct {
 	NetAddressUpdate *NetAddressUpdate
-	Signature        []byte
+	Signature        Signature
 }
 
 func (snau *SignedNetAddressUpdate) AppendBinary(b []byte) ([]byte, error) {
-	if len(snau.Signature) != SignatureSize {
-		return nil, &ErrInvalidSize{SubjectName: "Signature",
-			SubjectSize: len(snau.Signature)}
+	if err := snau.Signature.CheckSize(); err != nil {
+		return nil, err
+	}
+	if snau.NetAddressUpdate == nil {
+		return nil, &errs.ErrIsNil{SubjectName: "NetAddressUpdate"}
 	}
 
 	// Encode NetAddressUpdate
@@ -121,7 +128,7 @@ func (snau *SignedNetAddressUpdate) AppendBinary(b []byte) ([]byte, error) {
 }
 
 func (snau *SignedNetAddressUpdate) MarshalBinary() ([]byte, error) {
-	b, err := snau.AppendBinary(make([]byte, SignedNetAddressUpdateSize))
+	b, err := snau.AppendBinary(make([]byte, 0, SizeSignedNetAddressUpdate))
 	if err != nil {
 		return nil, err
 	}
@@ -132,25 +139,28 @@ func (snau *SignedNetAddressUpdate) MarshalBinary() ([]byte, error) {
 func (snau *SignedNetAddressUpdate) UnmarshalBinary(b []byte) error {
 	buf := b
 
-	if len(buf) != SignedNetAddressUpdateSize {
-		return &ErrInvalidSize{
-			SubjectName: "SignedNetAddressUpdate",
-			SubjectSize: len(buf),
+	if len(buf) != SizeSignedNetAddressUpdate {
+		return &errs.ErrInvalidSize{
+			SubjectName:         "SignedNetAddressUpdate",
+			SubjectActualSize:   len(buf),
+			SubjectExpectedSize: SizeSignedNetAddressUpdate,
 		}
 	}
 
 	// Decode NetAddressUpdate
-	nauByte := make([]byte, NetAddressUpdateSize)
-	copy(nauByte, buf[:NetAddressUpdateSize])
+	nauByte := make([]byte, SizeNetAddressUpdate)
+	copy(nauByte, buf[:SizeNetAddressUpdate])
 	var nau NetAddressUpdate
-	nau.UnmarshalBinary(nauByte)
+	if err := nau.UnmarshalBinary(nauByte); err != nil {
+		return err
+	}
 	snau.NetAddressUpdate = &nau
 
-	buf = buf[NetAddressUpdateSize:]
+	buf = buf[SizeNetAddressUpdate:]
 
 	// Decode Signature
-	snau.Signature = make([]byte, SignatureSize)
-	copy(snau.Signature, buf[:SignatureSize])
+	snau.Signature = make([]byte, SizeSignature)
+	copy(snau.Signature, buf[:SizeSignature])
 
 	return nil
 }

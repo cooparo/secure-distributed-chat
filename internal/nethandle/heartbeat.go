@@ -8,7 +8,7 @@ import (
 )
 
 func HandleHeartbeat(conn net.Conn, mgr *session.SessionManager) error {
-	logger.Get().Debugf("Got heartbeat from %s", conn.RemoteAddr().String())
+	logger.Get().Infof("Got heartbeat from %s", conn.RemoteAddr().String())
 
 	return nil
 }

@@ -2,6 +2,7 @@ package identity
 
 import (
 	"crypto/ed25519"
+	"errors"
 	"net"
 
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
@@ -95,28 +96,28 @@ func (nau *NetAddressUpdate) Sign(privateKey ed25519.PrivateKey) (*SignedNetAddr
 	signature := ed25519.Sign(privateKey, data)
 
 	snau := SignedNetAddressUpdate{
-		NetAddressUpdate: nau,
-		Signature:        signature,
+		Inner:     nau,
+		Signature: signature,
 	}
 
 	return &snau, nil
 }
 
 type SignedNetAddressUpdate struct {
-	NetAddressUpdate *NetAddressUpdate
-	Signature        Signature
+	Inner     *NetAddressUpdate
+	Signature Signature
 }
 
 func (snau *SignedNetAddressUpdate) AppendBinary(b []byte) ([]byte, error) {
 	if err := snau.Signature.CheckSize(); err != nil {
 		return nil, err
 	}
-	if snau.NetAddressUpdate == nil {
+	if snau.Inner == nil {
 		return nil, &errs.IsNilError{SubjectName: "NetAddressUpdate"}
 	}
 
-	// Encode NetAddressUpdate
-	b, err := snau.NetAddressUpdate.AppendBinary(b)
+	// Encode Inner
+	b, err := snau.Inner.AppendBinary(b)
 	if err != nil {
 		return nil, err
 	}
@@ -147,20 +148,41 @@ func (snau *SignedNetAddressUpdate) UnmarshalBinary(b []byte) error {
 		}
 	}
 
-	// Decode NetAddressUpdate
+	// Decode Inner
 	nauByte := make([]byte, SizeNetAddressUpdate)
 	copy(nauByte, buf[:SizeNetAddressUpdate])
 	var nau NetAddressUpdate
 	if err := nau.UnmarshalBinary(nauByte); err != nil {
 		return err
 	}
-	snau.NetAddressUpdate = &nau
+	snau.Inner = &nau
 
 	buf = buf[SizeNetAddressUpdate:]
 
 	// Decode Signature
 	snau.Signature = make([]byte, SizeSignature)
 	copy(snau.Signature, buf[:SizeSignature])
+
+	return nil
+}
+
+func (snau *SignedNetAddressUpdate) Verify(publicKey ed25519.PublicKey) error {
+	if err := snau.Signature.CheckSize(); err != nil {
+		return errors.Join(&errs.VerificationError{SubjectName: "SignedNetAddressUpdate"}, err)
+	}
+
+	data, err := snau.Inner.MarshalBinary()
+	if err != nil {
+		return errors.Join(&errs.VerificationError{SubjectName: "SignedNetAddressUpdate"}, err)
+	}
+
+	if !ed25519.Verify(publicKey, data, snau.Signature) {
+		return &SignatureVerificationError{
+			SubjectName: "SignedNetAddress",
+			SigningKey:  publicKey,
+			Signature:   snau.Signature,
+		}
+	}
 
 	return nil
 }

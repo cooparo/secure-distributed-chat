@@ -67,15 +67,6 @@ func (e *NoKeyExchangeError) Unwrap() error {
 	}
 }
 
-// Session Error
-type SessionError struct {
-	PeerAddress identity.IdentityAddress
-}
-
-func (e *SessionError) Error() string {
-	return fmt.Sprintf("Error with session %s", e.PeerAddress.Base32())
-}
-
 // No Session Error
 type NoSessionError struct {
 	PeerAddress identity.IdentityAddress
@@ -83,8 +74,4 @@ type NoSessionError struct {
 
 func (e *NoSessionError) Error() string {
 	return fmt.Sprintf("No session with %s", e.PeerAddress.Base32())
-}
-
-func (e *NoSessionError) Unwrap() error {
-	return &SessionError{PeerAddress: e.PeerAddress}
 }

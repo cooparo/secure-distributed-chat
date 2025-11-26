@@ -20,7 +20,7 @@ type IdentityAddress []byte
 func (a IdentityAddress) Base32() string {
 	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
 	dst := make([]byte, encoding.EncodedLen(len(a)))
-	encoding.Encode(dst, a[:])
+	encoding.Encode(dst, a)
 	return string(dst)
 }
 
@@ -52,7 +52,7 @@ func (s Signature) CheckSize() error {
 	return nil
 }
 
-func GenerateIdentity() (IdentityAddress, *SignedKeyBundle, error) {
+func GenerateIdentity() (IdentityAddress, *PrivateKeyBundle, error) {
 	_, privSign, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, nil, err
@@ -70,14 +70,10 @@ func GenerateIdentity() (IdentityAddress, *SignedKeyBundle, error) {
 
 	kb := pkb.Public()
 
-	skb, err := kb.Sign(privSign)
-
 	address, err := kb.Address()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// TODO: save privatekeys
-
-	return address, skb, nil
+	return address, &pkb, nil
 }

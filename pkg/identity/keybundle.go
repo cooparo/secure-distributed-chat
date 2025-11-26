@@ -4,7 +4,9 @@ import (
 	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/sha3"
+	"encoding/base64"
 	"errors"
+	"os"
 
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 )
@@ -87,6 +89,54 @@ func (pkb *PrivateKeyBundle) UnmarshalBinary(b []byte) error {
 	pkb.DiffieHellmanPrivateKey = dhpk
 
 	return nil
+}
+
+func (pkb *PrivateKeyBundle) Save(fileName string) error {
+	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	data, err := pkb.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	encoding := base64.StdEncoding
+	dst := make([]byte, encoding.EncodedLen(SizePrivateKeyBundle))
+	encoding.Encode(dst, data)
+	if _, err := f.Write(dst); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (pkb *PrivateKeyBundle) Load(fileName string) error {
+	f, err := os.OpenFile(fileName, os.O_RDONLY, 0)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	encoding := base64.StdEncoding
+	src := make([]byte, encoding.EncodedLen(SizePrivateKeyBundle))
+	if _, err := f.Read(src); err != nil {
+		return err
+	}
+
+	data := make([]byte, SizePrivateKeyBundle)
+	if _, err := encoding.Decode(data, src); err != nil {
+		return err
+	}
+
+	if err := pkb.UnmarshalBinary(data); err != nil {
+		return err
+	}
+
+	return nil
+
 }
 
 // Make KeyBundle

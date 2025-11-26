@@ -2,15 +2,19 @@ package netprotocol
 
 import (
 	"crypto/ecdh"
+	"crypto/ed25519"
+	"errors"
 
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 )
 
 const (
-	SizeEphemeralKey        = 32
-	SizeKeyExchangeRequest  = identity.SizeIdentityAddress*2 + identity.SizeSignedKeyBundle + identity.SizeSignedNetAddressUpdate + SizeEphemeralKey + identity.SizeSignature
-	SizeKeyExchangeResponse = identity.SizeIdentityAddress*2 + SizeEphemeralKey + SizeRatchetKey + identity.SizeSignature
+	SizeEphemeralKey              = 32
+	SizeKeyExchangeRequest        = identity.SizeIdentityAddress*2 + identity.SizeSignedKeyBundle + identity.SizeSignedNetAddressUpdate + SizeEphemeralKey
+	SizeSignedKeyExchangeRequest  = SizeKeyExchangeRequest + identity.SizeSignature
+	SizeKeyExchangeResponse       = identity.SizeIdentityAddress*2 + SizeEphemeralKey + SizeRatchetKey
+	SizeSignedKeyExchangeResponse = SizeKeyExchangeResponse + identity.SizeSignature
 )
 
 type KeyExchangeRequest struct {
@@ -19,7 +23,6 @@ type KeyExchangeRequest struct {
 	SignedKeyBundle        *identity.SignedKeyBundle
 	SignedNetAddressUpdate *identity.SignedNetAddressUpdate
 	EphemeralKey           *ecdh.PublicKey
-	Signature              identity.Signature
 }
 
 func (req *KeyExchangeRequest) AppendBinary(b []byte) ([]byte, error) {
@@ -45,9 +48,6 @@ func (req *KeyExchangeRequest) AppendBinary(b []byte) ([]byte, error) {
 			SubjectExpectedCurve: ecdh.X25519(),
 		}
 	}
-	if err := req.Signature.CheckSize(); err != nil {
-		return nil, err
-	}
 
 	// Encode SendIDAddr
 	b = append(b, req.SendIDAddr...)
@@ -69,9 +69,6 @@ func (req *KeyExchangeRequest) AppendBinary(b []byte) ([]byte, error) {
 
 	// Encode EphemeralKey
 	b = append(b, req.EphemeralKey.Bytes()...)
-
-	// Encode Signature
-	b = append(b, req.Signature...)
 
 	return b, nil
 }
@@ -137,11 +134,105 @@ func (req *KeyExchangeRequest) UnmarshalBinary(b []byte) error {
 	ek, _ := curve.NewPublicKey(ekByte)
 	req.EphemeralKey = ek
 
-	buf = buf[SizeEphemeralKey:]
+	return nil
+}
+
+func (req *KeyExchangeRequest) Sign(privateKey ed25519.PrivateKey) (*SignedKeyExchangeRequest, error) {
+	data, err := req.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	signature := ed25519.Sign(privateKey, data)
+
+	sreq := SignedKeyExchangeRequest{
+		Inner:     req,
+		Signature: signature,
+	}
+
+	return &sreq, nil
+}
+
+type SignedKeyExchangeRequest struct {
+	Inner     *KeyExchangeRequest
+	Signature identity.Signature
+}
+
+func (sreq *SignedKeyExchangeRequest) AppendBinary(b []byte) ([]byte, error) {
+	if err := sreq.Signature.CheckSize(); err != nil {
+		return nil, err
+	}
+	if sreq.Inner == nil {
+		return nil, &errs.IsNilError{SubjectName: "Inner"}
+	}
+
+	// Encode Inner
+	b, err := sreq.Inner.AppendBinary(b)
+	if err != nil {
+		return nil, err
+	}
+
+	// Encode Signature
+	b = append(b, sreq.Signature...)
+
+	return b, nil
+}
+
+func (sreq *SignedKeyExchangeRequest) MarshalBinary() ([]byte, error) {
+	b, err := sreq.AppendBinary(make([]byte, 0, SizeSignedKeyExchangeRequest))
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func (sreq *SignedKeyExchangeRequest) UnmarshalBinary(b []byte) error {
+	buf := b
+
+	if len(buf) != SizeSignedKeyExchangeRequest {
+		return &errs.SizeError{
+			SubjectName:         "SignedKeyExchangeRequest",
+			SubjectActualSize:   len(buf),
+			SubjectExpectedSize: SizeSignedKeyExchangeRequest,
+		}
+	}
+
+	// Decode Inner
+	reqByte := make([]byte, SizeKeyExchangeRequest)
+	copy(reqByte, buf[:SizeKeyExchangeRequest])
+	var req KeyExchangeRequest
+	if err := req.UnmarshalBinary(reqByte); err != nil {
+		return err
+	}
+	sreq.Inner = &req
+
+	buf = buf[SizeKeyExchangeRequest:]
 
 	// Decode Signature
-	req.Signature = make([]byte, identity.SizeSignature)
-	copy(req.Signature, buf[:identity.SizeSignature])
+	sreq.Signature = make([]byte, identity.SizeSignature)
+	copy(sreq.Signature, buf[:identity.SizeSignature])
+
+	return nil
+}
+
+func (sreq *SignedKeyExchangeRequest) Verify(publicKey ed25519.PublicKey) error {
+	if err := sreq.Signature.CheckSize(); err != nil {
+		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyExchangeRequest"}, err)
+	}
+
+	data, err := sreq.Inner.MarshalBinary()
+	if err != nil {
+		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyExchangeRequest"}, err)
+	}
+
+	if !ed25519.Verify(publicKey, data, sreq.Signature) {
+		return &identity.SignatureVerificationError{
+			SubjectName: "SignedKeyExchangeRequest",
+			SigningKey:  publicKey,
+			Signature:   sreq.Signature,
+		}
+	}
 
 	return nil
 }
@@ -256,6 +347,106 @@ func (resp *KeyExchangeResponse) UnmarshalBinary(b []byte) error {
 	// Decode Signature
 	resp.Signature = make([]byte, identity.SizeSignature)
 	copy(resp.Signature, buf[:identity.SizeSignature])
+
+	return nil
+}
+
+func (resp *KeyExchangeResponse) Sign(privateKey ed25519.PrivateKey) (*SignedKeyExchangeResponse, error) {
+	data, err := resp.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	signature := ed25519.Sign(privateKey, data)
+
+	sresp := SignedKeyExchangeResponse{
+		Inner:     resp,
+		Signature: signature,
+	}
+
+	return &sresp, nil
+}
+
+type SignedKeyExchangeResponse struct {
+	Inner     *KeyExchangeResponse
+	Signature identity.Signature
+}
+
+func (sresp *SignedKeyExchangeResponse) AppendBinary(b []byte) ([]byte, error) {
+	if err := sresp.Signature.CheckSize(); err != nil {
+		return nil, err
+	}
+	if sresp.Inner == nil {
+		return nil, &errs.IsNilError{SubjectName: "Inner"}
+	}
+
+	// Encode Inner
+	b, err := sresp.Inner.AppendBinary(b)
+	if err != nil {
+		return nil, err
+	}
+
+	// Encode Signature
+	b = append(b, sresp.Signature...)
+
+	return b, nil
+}
+
+func (sresp *SignedKeyExchangeResponse) MarshalBinary() ([]byte, error) {
+	b, err := sresp.AppendBinary(make([]byte, 0, SizeSignedKeyExchangeResponse))
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func (sresp *SignedKeyExchangeResponse) UnmarshalBinary(b []byte) error {
+	buf := b
+
+	if len(buf) != SizeSignedKeyExchangeResponse {
+		return &errs.SizeError{
+			SubjectName:         "SignedKeyExchangeResponse",
+			SubjectActualSize:   len(buf),
+			SubjectExpectedSize: SizeSignedKeyExchangeResponse,
+		}
+	}
+
+	// Decode Inner
+	respByte := make([]byte, SizeKeyExchangeResponse)
+	copy(respByte, buf[:SizeKeyExchangeResponse])
+	var resp KeyExchangeResponse
+	if err := resp.UnmarshalBinary(respByte); err != nil {
+		return err
+	}
+	sresp.Inner = &resp
+
+	buf = buf[SizeKeyExchangeResponse:]
+
+	// Decode Signature
+	sresp.Signature = make([]byte, identity.SizeSignature)
+	copy(sresp.Signature, buf[:identity.SizeSignature])
+
+	return nil
+}
+
+func (sresp *SignedKeyExchangeResponse) Verify(publicKey ed25519.PublicKey) error {
+	if err := sresp.Signature.CheckSize(); err != nil {
+		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyExchangeResponse"}, err)
+	}
+
+	data, err := sresp.Inner.MarshalBinary()
+	if err != nil {
+		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyExchangeResponse"}, err)
+	}
+
+	if !ed25519.Verify(publicKey, data, sresp.Signature) {
+		return &identity.SignatureVerificationError{
+			SubjectName: "SignedKeyExchangeResponse",
+			SigningKey:  publicKey,
+			Signature:   sresp.Signature,
+		}
+	}
 
 	return nil
 }

@@ -14,14 +14,15 @@ import (
 )
 
 func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
-	reqByte := make([]byte, netprotocol.SizeKeyExchangeRequest)
-	if _, err := conn.Read(reqByte); err != nil {
+	sreqByte := make([]byte, netprotocol.SizeSignedKeyExchangeRequest)
+	if _, err := conn.Read(sreqByte); err != nil {
 		return err
 	}
-	var req netprotocol.KeyExchangeRequest
-	if err := req.UnmarshalBinary(reqByte); err != nil {
+	var sreq netprotocol.SignedKeyExchangeRequest
+	if err := sreq.UnmarshalBinary(sreqByte); err != nil {
 		return err
 	}
+	req := sreq.Inner
 
 	logger.Get().Infof("Key Exchange Request from %s to %s", req.SendIDAddr.Base32(), req.RecvIDAddr.Base32())
 
@@ -34,7 +35,10 @@ func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 		}
 	}
 
-	calcAddress, err := req.SignedKeyBundle.KeyBundle.Address()
+	skb := req.SignedKeyBundle
+	kb := skb.Inner
+
+	calcAddress, err := kb.Address()
 	if err != nil {
 		logger.Get().Errorf("Got error calculating address from Key Bundle: %s", err.Error())
 		return err
@@ -48,12 +52,13 @@ func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 		}
 	}
 
-	if err := req.SignedKeyBundle.Verify(); err != nil {
-		logger.Get().Warn("KeyBundle failed verification")
+	if err := skb.Verify(); err != nil {
 		return err
 	}
 
-	// TODO: verify Request
+	if err := sreq.Verify(kb.SigningKey); err != nil {
+		return err
+	}
 
 	// TODO: store identity in database
 
@@ -62,9 +67,11 @@ func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 		return err
 	}
 
+	pkb := mgr.PrivateKeyBundle
+
 	secrets := make([]byte, 0, 64)
 
-	staticSecret, err := mgr.PrivateKeyBundle.DiffieHellmanPrivateKey.ECDH(req.SignedKeyBundle.KeyBundle.DiffieHellmanKey)
+	staticSecret, err := pkb.DiffieHellmanPrivateKey.ECDH(kb.DiffieHellmanKey)
 	if err != nil {
 		return err
 	}
@@ -85,12 +92,11 @@ func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 
 	sess := session.Session{
 		Ratchet:   ratchet,
-		KeyBundle: req.SignedKeyBundle.KeyBundle,
+		KeyBundle: kb,
 	}
 
 	mgr.Set(req.SendIDAddr.Base32(), &sess)
 
-	// TODO: Generate Signature
 	resp := netprotocol.KeyExchangeResponse{
 		SendIDAddr:   req.RecvIDAddr,
 		RecvIDAddr:   req.SendIDAddr,
@@ -98,11 +104,16 @@ func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 		RatchetKey:   ratchet.OurKey.PublicKey(),
 	}
 
-	respByte, err := resp.MarshalBinary()
+	sresp, err := resp.Sign(pkb.SigningPrivateKey)
 	if err != nil {
 		return err
 	}
-	if _, err := conn.Write(respByte); err != nil {
+
+	srespByte, err := sresp.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	if _, err := conn.Write(srespByte); err != nil {
 		return err
 	}
 
@@ -110,20 +121,21 @@ func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 }
 
 func HandleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
-	respByte := make([]byte, netprotocol.SizeKeyExchangeResponse)
-	if _, err := conn.Read(respByte); err != nil {
+	srespByte := make([]byte, netprotocol.SizeSignedKeyExchangeResponse)
+	if _, err := conn.Read(srespByte); err != nil {
 		return err
 	}
-	var resp netprotocol.KeyExchangeResponse
-	if err := resp.UnmarshalBinary(respByte); err != nil {
+	var sresp netprotocol.SignedKeyExchangeResponse
+	if err := sresp.UnmarshalBinary(srespByte); err != nil {
 		return err
 	}
+	resp := sresp.Inner
 
 	logger.Get().Infof("Key Exchange Response from %s to %s", resp.SendIDAddr.Base32(), resp.RecvIDAddr.Base32())
 
 	if !mgr.Address.Equal(resp.RecvIDAddr) {
 		return &InvalidRecvError{
-			SubjectName:         "Key Exchange Response",
+			SubjectName:         "KeyExchangeResponse",
 			SubjectActualRecv:   resp.RecvIDAddr,
 			SubjectExpectedRecv: mgr.Address,
 		}
@@ -139,11 +151,17 @@ func HandleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.
 		return &NoKeyExchangeError{PeerAddress: resp.SendIDAddr}
 	}
 
-	// TODO: verify signature on response
+	kb := sess.KeyBundle
+
+	if err := sresp.Verify(kb.SigningKey); err != nil {
+		return err
+	}
+
+	pkb := mgr.PrivateKeyBundle
 
 	secrets := make([]byte, 0, 64)
 
-	staticSecret, err := mgr.PrivateKeyBundle.DiffieHellmanPrivateKey.ECDH(sess.KeyBundle.DiffieHellmanKey)
+	staticSecret, err := pkb.DiffieHellmanPrivateKey.ECDH(kb.DiffieHellmanKey)
 	if err != nil {
 		return err
 	}

@@ -13,7 +13,7 @@ import (
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
-func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
+func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
 	sreqByte := make([]byte, netprotocol.SizeSignedKeyExchangeRequest)
 	if _, err := conn.Read(sreqByte); err != nil {
 		return err
@@ -120,7 +120,7 @@ func HandleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 	return nil
 }
 
-func HandleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
+func handleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
 	srespByte := make([]byte, netprotocol.SizeSignedKeyExchangeResponse)
 	if _, err := conn.Read(srespByte); err != nil {
 		return err

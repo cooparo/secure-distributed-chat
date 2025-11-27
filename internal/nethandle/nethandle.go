@@ -26,10 +26,10 @@ var packetTypeName = map[netprotocol.PacketType]string{
 type packetHandler func(context.Context, net.Conn, *session.SessionManager) error
 
 var packetTypeHandler = map[netprotocol.PacketType]packetHandler{
-	netprotocol.PacketTypeHeartbeat:           HandleHeartbeat,
-	netprotocol.PacketTypeMessage:             HandleMessage,
-	netprotocol.PacketTypeKeyExchangeRequest:  HandleKeyExchangeRequest,
-	netprotocol.PacketTypeKeyExchangeResponse: HandleKeyExchangeResponse,
+	netprotocol.PacketTypeHeartbeat:           handleHeartbeat,
+	netprotocol.PacketTypeMessage:             handleMessage,
+	netprotocol.PacketTypeKeyExchangeRequest:  handleKeyExchangeRequest,
+	netprotocol.PacketTypeKeyExchangeResponse: handleKeyExchangeResponse,
 }
 
 func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr *session.SessionManager) {

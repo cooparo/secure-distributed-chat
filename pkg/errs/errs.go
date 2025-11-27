@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// Invalid Size Error
+// SizeError Invalid Size Error
 type SizeError struct {
 	SubjectName         string
 	SubjectActualSize   int
@@ -16,7 +16,7 @@ func (e *SizeError) Error() string {
 	return fmt.Sprintf("Invalid size of %s: %d (expected %d)", e.SubjectName, e.SubjectActualSize, e.SubjectExpectedSize)
 }
 
-// Minimum Size Error
+// MinSizeError Minimum Size Error
 type MinSizeError struct {
 	SubjectName         string
 	SubjectActualSize   int
@@ -35,7 +35,26 @@ func (e *MinSizeError) Unwrap() error {
 	}
 }
 
-// Diffie-Hellman Curve Error
+// MaxSizeError Maximum Size Error
+type MaxSizeError struct {
+	SubjectName         string
+	SubjectActualSize   int
+	SubjectExpectedSize int
+}
+
+func (e *MaxSizeError) Error() string {
+	return fmt.Sprintf("Size of %s is too big: %d (expected %d)", e.SubjectName, e.SubjectActualSize, e.SubjectExpectedSize)
+}
+
+func (e *MaxSizeError) Unwrap() error {
+	return &SizeError{
+		SubjectName:         e.SubjectName,
+		SubjectActualSize:   e.SubjectActualSize,
+		SubjectExpectedSize: e.SubjectExpectedSize,
+	}
+}
+
+// DHCurveError Diffie-Hellman Curve Error
 type DHCurveError struct {
 	SubjectName          string
 	SubjectActualCurve   ecdh.Curve
@@ -61,7 +80,7 @@ func (e *DHCurveError) curveName(curve ecdh.Curve) string {
 	}
 }
 
-// Is Nil Error
+// IsNilError Is Nil Error
 type IsNilError struct {
 	SubjectName string
 }
@@ -70,7 +89,7 @@ func (e *IsNilError) Error() string {
 	return fmt.Sprintf("%s is nil", e.SubjectName)
 }
 
-// Verification Error
+// VerificationError Verification Error
 type VerificationError struct {
 	SubjectName string
 }

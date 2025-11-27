@@ -11,8 +11,7 @@ const (
 	SizeDataLength     = 2
 	SizePrevChainCount = 1
 	SizeChainCount     = 1
-	SizeNonce          = 12
-	SizeMessageHeader  = identity.SizeIdentityAddress + SizeDataLength + SizePrevChainCount + SizeChainCount + SizeNonce
+	SizeMessageHeader  = identity.SizeIdentityAddress + SizeDataLength + SizePrevChainCount + SizeChainCount
 )
 
 type MessageHeader struct {
@@ -21,7 +20,6 @@ type MessageHeader struct {
 	PrevChainCount  uint8
 	ChainCount      uint8
 	RatchetKey      *ecdh.PublicKey
-	Nonce           []byte
 }
 
 func (mh *MessageHeader) AppendBinary(b []byte) ([]byte, error) {
@@ -36,13 +34,6 @@ func (mh *MessageHeader) AppendBinary(b []byte) ([]byte, error) {
 			SubjectName:          "RatchetKey",
 			SubjectActualCurve:   mh.RatchetKey.Curve(),
 			SubjectExpectedCurve: ecdh.X25519(),
-		}
-	}
-	if len(mh.Nonce) != SizeNonce {
-		return nil, &errs.SizeError{
-			SubjectName:         "Nonce",
-			SubjectActualSize:   len(mh.Nonce),
-			SubjectExpectedSize: SizeNonce,
 		}
 	}
 
@@ -63,9 +54,6 @@ func (mh *MessageHeader) AppendBinary(b []byte) ([]byte, error) {
 
 	// Encode RatchetKey
 	b = append(b, mh.RatchetKey.Bytes()...)
-
-	// Encode Nonce
-	b = append(b, mh.Nonce...)
 
 	return b, nil
 }
@@ -120,10 +108,6 @@ func (mh *MessageHeader) UnmarshalBinary(b []byte) error {
 	mh.RatchetKey = rk
 
 	buf = buf[SizeRatchetKey:]
-
-	// Decode Nonce
-	mh.Nonce = make([]byte, SizeNonce)
-	copy(mh.Nonce, buf[:SizeNonce])
 
 	return nil
 }

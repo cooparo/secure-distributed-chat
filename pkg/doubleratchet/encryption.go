@@ -3,8 +3,6 @@ package doubleratchet
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
-	"io"
 )
 
 func newAESGCM(key []byte) (cipher.AEAD, error) {
@@ -21,20 +19,14 @@ func newAESGCM(key []byte) (cipher.AEAD, error) {
 	return aesgcm, nil
 }
 
-func encrypt(key, plaintext, associatedData []byte) ([]byte, []byte, error) {
+func encrypt(key, nonce, plaintext, associatedData []byte) ([]byte, error) {
 	aesgcm, err := newAESGCM(key)
 	if err != nil {
-		return nil, nil, err
-	}
-
-	nonce := make([]byte, aesgcm.NonceSize())
-	_, err = io.ReadFull(rand.Reader, nonce)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	ciphertext := aesgcm.Seal(nil, nonce, plaintext, associatedData)
-	return nonce, ciphertext, nil
+	return ciphertext, nil
 }
 
 func decrypt(key, nonce, ciphertext, associatedData []byte) ([]byte, error) {

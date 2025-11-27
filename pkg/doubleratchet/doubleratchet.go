@@ -45,13 +45,14 @@ func New(sharedSecret []byte, theirKey *ecdh.PublicKey) (*DoubleRatchet, error) 
 		if err != nil {
 			return nil, err
 		}
-		sendChainKey, err := rootChain.Step(sendChainDH)
+		sendChainKey, sendNonce, err := rootChain.Step(sendChainDH)
 		if err != nil {
 			return nil, err
 		}
 
 		sendChain := kdfchain.MsgKDFChain{
 			ChainKey:     sendChainKey,
+			Nonce:        sendNonce,
 			MsgCount:     0,
 			PrevMsgCount: 0,
 		}
@@ -73,9 +74,10 @@ func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) error {
 	if r.RecvChain != nil {
 		recvPrevMsgCount = r.RecvChain.MsgCount
 	}
-	recvChainKey, err := r.RootChain.Step(recvChainDH)
+	recvChainKey, recvNonce, err := r.RootChain.Step(recvChainDH)
 	recvChain := kdfchain.MsgKDFChain{
 		ChainKey:     recvChainKey,
+		Nonce:        recvNonce,
 		MsgCount:     0,
 		PrevMsgCount: recvPrevMsgCount,
 	}
@@ -90,9 +92,10 @@ func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) error {
 	if r.SendChain != nil {
 		sendPrevMsgCount = r.SendChain.MsgCount
 	}
-	sendChainKey, err := r.RootChain.Step(sendChainDH)
+	sendChainKey, sendNonce, err := r.RootChain.Step(sendChainDH)
 	sendChain := kdfchain.MsgKDFChain{
 		ChainKey:     sendChainKey,
+		Nonce:        sendNonce,
 		MsgCount:     0,
 		PrevMsgCount: sendPrevMsgCount,
 	}
@@ -105,25 +108,25 @@ func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) error {
 	return nil
 }
 
-func (r *DoubleRatchet) Encrypt(plaintext, associatedData []byte) ([]byte, []byte, error) {
+func (r *DoubleRatchet) Encrypt(plaintext, associatedData []byte) ([]byte, error) {
 	if r.SendChain == nil {
-		return nil, nil, &UninitializedChainError{ChainName: "Sending"}
+		return nil, &UninitializedChainError{ChainName: "Sending"}
 	}
 
 	key, err := r.SendChain.Step()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	nonce, ciphertext, err := encrypt(key, plaintext, associatedData)
+	ciphertext, err := encrypt(key, r.SendChain.Nonce, plaintext, associatedData)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return nonce, ciphertext, nil
+	return ciphertext, nil
 }
 
-func (r *DoubleRatchet) Decrypt(theirKey *ecdh.PublicKey, nonce, ciphertext, associatedData []byte) ([]byte, error) {
+func (r *DoubleRatchet) Decrypt(theirKey *ecdh.PublicKey, ciphertext, associatedData []byte) ([]byte, error) {
 	err := r.Update(theirKey)
 	if err != nil {
 		return nil, err
@@ -134,7 +137,7 @@ func (r *DoubleRatchet) Decrypt(theirKey *ecdh.PublicKey, nonce, ciphertext, ass
 		return nil, err
 	}
 
-	plaintext, err := decrypt(key, nonce, ciphertext, associatedData)
+	plaintext, err := decrypt(key, r.RecvChain.Nonce, ciphertext, associatedData)
 	if err != nil {
 		return nil, err
 	}

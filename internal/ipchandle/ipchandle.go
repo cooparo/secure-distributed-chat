@@ -1,25 +1,51 @@
-package ipc
+package ipchandle
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
 	"os"
-	"path/filepath"
+	"sync"
+	"time"
 
-	"github.com/cooparo/secure-distributed-chat/pkg/logger"
+	"github.com/cooparo/secure-distributed-chat/internal/logger"
+	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
+	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
-// DefaultSocketPath returns the standard location for the socket
-func DefaultSocketPath() string {
-	dir := os.Getenv("XDG_RUNTIME_DIR")
-	if dir == "" {
-		dir = "/tmp"
-	}
-	return filepath.Join(dir, "grat.sock")
+const connTimeout = 5 * time.Second
+
+var packetTypeName = map[ipcprotocol.CmdType]string{
+	ipcprotocol.CmdTypeMsgReq:      "Message Request",
+	ipcprotocol.CmdTypeMsgResp:     "Message Response",
+	ipcprotocol.CmdTypeSendMsg:     "Send Message",
+	ipcprotocol.CmdTypeSendMsgAck:  "Send Message ACK",
+	ipcprotocol.CmdTypeSendMsgNack: "Send Message NACK",
 }
 
-func HandleIpcConnection(c net.Conn) {
+type packetHandler func(context.Context, net.Conn, *session.SessionManager) error
+
+var packetTypeHandler = map[ipcprotocol.CmdType]packetHandler{
+	ipcprotocol.CmdTypeMsgReq:      HandleCmdMsgReq,
+	ipcprotocol.CmdTypeMsgResp:     HandleCmdMsgResp,
+	ipcprotocol.CmdTypeSendMsg:     HandleCmdSendMsg,
+	ipcprotocol.CmdTypeSendMsgAck:  HandleCmdSendMsgAck,
+	ipcprotocol.CmdTypeSendMsgNack: HandleCmdSendMsgNack,
+}
+
+func ServeIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr *session.SessionManager) {
+	// Close the socket on signal interrupt
+	go func() {
+		<-ctx.Done()
+		os.Remove(ipcprotocol.DefaultSocketPath())
+		ln.Close()
+	}()
+
+	// TODO:
+}
+
+func handleIpcConnection(c net.Conn) {
 	defer c.Close()
 
 	err := handleIpcPackets(c)
@@ -32,7 +58,7 @@ func HandleIpcConnection(c net.Conn) {
 
 func handleIpcPackets(c net.Conn) error {
 	// Read header
-	headerBuf := make([]byte, headerSize)
+	headerBuf := make([]byte, IpcHeaderSize)
 	_, err := io.ReadFull(c, headerBuf)
 
 	if err != nil {
@@ -59,9 +85,9 @@ func handleIpcPackets(c net.Conn) error {
 	}
 
 	fullPacket := append(headerBuf, payloadBuf...)
-	logger.Get().Info("Received cmd: " + CmdTypeName[h.cmdType])
+	logger.Get().Info("Received cmd: " + CmdTypeName[h.CmdType])
 
-	switch h.cmdType {
+	switch h.CmdType {
 
 	case CmdMsgReq:
 
@@ -120,7 +146,7 @@ func handleIpcPackets(c net.Conn) error {
 		logger.Get().Info("Message sent.")
 
 	default:
-		logger.Get().Warn(fmt.Sprintf("Unknown IPC Command: %d", h.cmdType))
+		logger.Get().Warn(fmt.Sprintf("Unknown IPC Command: %d", h.CmdType))
 
 	}
 

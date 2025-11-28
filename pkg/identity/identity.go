@@ -52,15 +52,15 @@ func (s Signature) CheckSize() error {
 	return nil
 }
 
-func GenerateIdentity() (IdentityAddress, *PrivateKeyBundle, error) {
+func GenerateIdentity() (*PrivateKeyBundle, error) {
 	_, privSign, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	privdh, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	pkb := PrivateKeyBundle{
@@ -68,12 +68,5 @@ func GenerateIdentity() (IdentityAddress, *PrivateKeyBundle, error) {
 		DiffieHellmanPrivateKey: privdh,
 	}
 
-	kb := pkb.Public()
-
-	address, err := kb.Address()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return address, &pkb, nil
+	return &pkb, nil
 }

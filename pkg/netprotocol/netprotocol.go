@@ -57,7 +57,7 @@ func (mh *MainHeader) UnmarshalBinary(b []byte) error {
 	buf = buf[SizeVersion:]
 
 	// Decode PacketType
-	mh.PacketType = PacketType(b[0])
+	mh.PacketType = PacketType(buf[0])
 
 	return nil
 }

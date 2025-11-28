@@ -15,8 +15,42 @@ const (
 	SizeSignedNetAddressUpdate = SizeNetAddressUpdate + SizeSignature
 )
 
+type Timestamp int64
+
+func (t *Timestamp) AppendBinary(b []byte) ([]byte, error) {
+	ts := *t
+
+	return append(b,
+		byte(ts>>56),
+		byte(ts>>48),
+		byte(ts>>40),
+		byte(ts>>32),
+		byte(ts>>24),
+		byte(ts>>16),
+		byte(ts>>8),
+		byte(ts)), nil
+}
+
+func (t *Timestamp) MarshalBinary() ([]byte, error) {
+	return t.AppendBinary(make([]byte, 0, SizeTimestamp))
+}
+
+func (t *Timestamp) UnmarshalBinary(b []byte) error {
+	ts := int64(b[7]) |
+		int64(b[6])<<8 |
+		int64(b[5])<<16 |
+		int64(b[4])<<24 |
+		int64(b[3])<<32 |
+		int64(b[2])<<40 |
+		int64(b[1])<<48 |
+		int64(b[0])<<56
+
+	*t = Timestamp(ts)
+	return nil
+}
+
 type NetAddressUpdate struct {
-	Timestamp  int64
+	Timestamp  Timestamp
 	NetAddress net.IP
 }
 
@@ -30,16 +64,11 @@ func (nau *NetAddressUpdate) AppendBinary(b []byte) ([]byte, error) {
 	}
 
 	// Encode Timestamp
-	t := nau.Timestamp
-	b = append(b,
-		byte(t>>56),
-		byte(t>>48),
-		byte(t>>40),
-		byte(t>>32),
-		byte(t>>24),
-		byte(t>>16),
-		byte(t>>8),
-		byte(t))
+	b, err := nau.Timestamp.AppendBinary(b)
+
+	if err != nil {
+		return nil, err
+	}
 
 	// Encode NetAddress
 	b = append(b, nau.NetAddress...)
@@ -68,16 +97,9 @@ func (nau *NetAddressUpdate) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode Timestamp
-	t := int64(b[7]) |
-		int64(b[6])<<8 |
-		int64(b[5])<<16 |
-		int64(b[4])<<24 |
-		int64(b[3])<<32 |
-		int64(b[2])<<40 |
-		int64(b[1])<<48 |
-		int64(b[0])<<56
-	nau.Timestamp = t
-
+	if err := nau.Timestamp.UnmarshalBinary(buf); err != nil {
+		return err
+	}
 	buf = buf[SizeTimestamp:]
 
 	// Decode NetAddress

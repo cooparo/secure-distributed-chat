@@ -9,9 +9,11 @@ import (
 	"syscall"
 
 	"github.com/cooparo/secure-distributed-chat/internal/database"
+	"github.com/cooparo/secure-distributed-chat/internal/ipchandle"
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/internal/nethandle"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
+	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 	"github.com/spf13/cobra"
 )
@@ -71,8 +73,17 @@ var rootCmd = &cobra.Command{
 
 		nethandle.ServeListener(ctx, ln, &wg, mgr, query)
 
-		// TODO: setup IPC socket
-		// TODO: call ipchandle.ServeListener(ctx, ln, &wg, mgr)
+		// Socket init
+		var s net.Listener
+		sp := ipcprotocol.DefaultSocketPath()
+		s, err = net.Listen("unix", sp)
+
+		if err != nil {
+			logger.Get().Fatalf("Got error making Socket listener: %s", err.Error())
+		}
+
+		logger.Get().Infof("Starting server on socket %s", sp)
+		ipchandle.ServeIpcListener(ctx, s, &wg, mgr)
 
 		// Wait for shutdown
 		<-ctx.Done()

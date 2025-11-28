@@ -32,7 +32,12 @@ func (t *Timestamp) AppendBinary(b []byte) ([]byte, error) {
 }
 
 func (t *Timestamp) MarshalBinary() ([]byte, error) {
-	return t.AppendBinary(make([]byte, 0, SizeTimestamp))
+	b, err := t.AppendBinary(make([]byte, 0, SizeTimestamp))
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
 }
 
 func (t *Timestamp) UnmarshalBinary(b []byte) error {
@@ -65,7 +70,6 @@ func (nau *NetAddressUpdate) AppendBinary(b []byte) ([]byte, error) {
 
 	// Encode Timestamp
 	b, err := nau.Timestamp.AppendBinary(b)
-
 	if err != nil {
 		return nil, err
 	}

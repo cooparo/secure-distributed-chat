@@ -11,40 +11,40 @@ import (
 )
 
 func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
-	mhByte := make([]byte, netprotocol.SizeMessageHeader)
-	if _, err := conn.Read(mhByte); err != nil {
+	msghdrByte := make([]byte, netprotocol.SizeMessageHeader)
+	if _, err := conn.Read(msghdrByte); err != nil {
 		return err
 	}
-	var mh netprotocol.MessageHeader
-	if err := mh.UnmarshalBinary(mhByte); err != nil {
+	var msghdr netprotocol.MessageHeader
+	if err := msghdr.UnmarshalBinary(msghdrByte); err != nil {
 		return err
 	}
 
-	logger.Get().Infof("Got Message from %s with DataLength %d", mh.IdentityAddress.Base32(), mh.DataLength)
+	logger.Get().Infof("Got Message from %s with DataLength %d", msghdr.SendIDAddr.Base32(), msghdr.DataLength)
 
-	sess, ok := mgr.Get(mh.IdentityAddress.Base32())
+	sess, ok := mgr.Get(msghdr.SendIDAddr.Base32())
 	if !ok {
 		// TODO: Check if session in database
-		return &NoSessionError{PeerAddress: mh.IdentityAddress}
+		return &NoSessionError{PeerAddress: msghdr.SendIDAddr}
 	}
 
 	if sess.Ratchet == nil {
 		return &errs.IsNilError{SubjectName: "Ratchet"}
 	}
 
-	data := make([]byte, mh.DataLength)
+	data := make([]byte, msghdr.DataLength)
 	if _, err := conn.Read(data); err != nil {
 		return err
 	}
 
-	logger.Get().Debugf("Message data from %s is: %#x", mh.IdentityAddress.Base32(), data)
+	logger.Get().Debugf("Message data from %s is: %#x", msghdr.SendIDAddr.Base32(), data)
 
-	plaintext, err := sess.Ratchet.Decrypt(mh.RatchetKey, data, mhByte)
+	plaintext, err := sess.Ratchet.Decrypt(msghdr.RatchetKey, data, msghdrByte)
 	if err != nil {
 		return err
 	}
 
-	logger.Get().Debugf("Message from %s decrypted to %s", mh.IdentityAddress.Base32(), plaintext)
+	logger.Get().Debugf("Message from %s decrypted to %s", msghdr.SendIDAddr.Base32(), plaintext)
 
 	// TODO: store message
 

@@ -26,37 +26,37 @@ type PrivateKeyBundle struct {
 	DiffieHellmanPrivateKey *ecdh.PrivateKey
 }
 
-func (pkb *PrivateKeyBundle) AppendBinary(b []byte) ([]byte, error) {
-	if pkb.DiffieHellmanPrivateKey == nil {
+func (privkeybndl *PrivateKeyBundle) AppendBinary(b []byte) ([]byte, error) {
+	if privkeybndl.DiffieHellmanPrivateKey == nil {
 		return nil, &errs.IsNilError{SubjectName: "DiffieHellmanPrivateKey"}
 	}
-	if pkb.DiffieHellmanPrivateKey.Curve() != ecdh.X25519() {
+	if privkeybndl.DiffieHellmanPrivateKey.Curve() != ecdh.X25519() {
 		return nil, &errs.DHCurveError{
 			SubjectName:          "DiffieHellmanPrivateKey",
-			SubjectActualCurve:   pkb.DiffieHellmanPrivateKey.Curve(),
+			SubjectActualCurve:   privkeybndl.DiffieHellmanPrivateKey.Curve(),
 			SubjectExpectedCurve: ecdh.X25519(),
 		}
 	}
 
-	if len(pkb.SigningPrivateKey) != SizeSigningPrivateKey {
+	if len(privkeybndl.SigningPrivateKey) != SizeSigningPrivateKey {
 		return nil, &errs.SizeError{
 			SubjectName:         "SigningPrivateKey",
-			SubjectActualSize:   len(pkb.SigningPrivateKey),
+			SubjectActualSize:   len(privkeybndl.SigningPrivateKey),
 			SubjectExpectedSize: SizeSigningPrivateKey,
 		}
 	}
 
 	// Encode SigningPrivateKey
-	b = append(b, pkb.SigningPrivateKey...)
+	b = append(b, privkeybndl.SigningPrivateKey...)
 
 	// Encode DiffieHellmanPrivateKey
-	b = append(b, pkb.DiffieHellmanPrivateKey.Bytes()...)
+	b = append(b, privkeybndl.DiffieHellmanPrivateKey.Bytes()...)
 
 	return b, nil
 }
 
-func (pkb *PrivateKeyBundle) MarshalBinary() ([]byte, error) {
-	b, err := pkb.AppendBinary(make([]byte, 0, SizePrivateKeyBundle))
+func (privkeybndl *PrivateKeyBundle) MarshalBinary() ([]byte, error) {
+	b, err := privkeybndl.AppendBinary(make([]byte, 0, SizePrivateKeyBundle))
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (pkb *PrivateKeyBundle) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-func (pkb *PrivateKeyBundle) UnmarshalBinary(b []byte) error {
+func (privkeybndl *PrivateKeyBundle) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizePrivateKeyBundle {
@@ -76,29 +76,29 @@ func (pkb *PrivateKeyBundle) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode SigningPrivateKey
-	pkb.SigningPrivateKey = make([]byte, SizeSigningPrivateKey)
-	copy(pkb.SigningPrivateKey, buf[:SizeSigningPrivateKey])
+	privkeybndl.SigningPrivateKey = make([]byte, SizeSigningPrivateKey)
+	copy(privkeybndl.SigningPrivateKey, buf[:SizeSigningPrivateKey])
 
 	buf = buf[SizeSigningPrivateKey:]
 
 	// Decode DiffieHellmanPrivateKey
-	dhpkBytes := make([]byte, SizeDiffieHellmanPrivateKey)
-	copy(dhpkBytes, buf[:SizeDiffieHellmanPrivateKey])
+	dhkeyBytes := make([]byte, SizeDiffieHellmanPrivateKey)
+	copy(dhkeyBytes, buf[:SizeDiffieHellmanPrivateKey])
 	curve := ecdh.X25519()
-	dhpk, _ := curve.NewPrivateKey(dhpkBytes)
-	pkb.DiffieHellmanPrivateKey = dhpk
+	dhkey, _ := curve.NewPrivateKey(dhkeyBytes)
+	privkeybndl.DiffieHellmanPrivateKey = dhkey
 
 	return nil
 }
 
-func (pkb *PrivateKeyBundle) Save(fileName string) error {
+func (privkeybndl *PrivateKeyBundle) Save(fileName string) error {
 	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	data, err := pkb.MarshalBinary()
+	data, err := privkeybndl.MarshalBinary()
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func (pkb *PrivateKeyBundle) Save(fileName string) error {
 	return nil
 }
 
-func (pkb *PrivateKeyBundle) Load(fileName string) error {
+func (privkeybndl *PrivateKeyBundle) Load(fileName string) error {
 	f, err := os.OpenFile(fileName, os.O_RDONLY, 0)
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func (pkb *PrivateKeyBundle) Load(fileName string) error {
 		return err
 	}
 
-	if err := pkb.UnmarshalBinary(data); err != nil {
+	if err := privkeybndl.UnmarshalBinary(data); err != nil {
 		return err
 	}
 
@@ -140,10 +140,10 @@ func (pkb *PrivateKeyBundle) Load(fileName string) error {
 }
 
 // Make KeyBundle
-func (pkb *PrivateKeyBundle) Public() *KeyBundle {
+func (privkeybndl *PrivateKeyBundle) Public() *KeyBundle {
 	return &KeyBundle{
-		SigningKey:       pkb.SigningPrivateKey.Public().(ed25519.PublicKey),
-		DiffieHellmanKey: pkb.DiffieHellmanPrivateKey.PublicKey(),
+		SigningKey:       privkeybndl.SigningPrivateKey.Public().(ed25519.PublicKey),
+		DiffieHellmanKey: privkeybndl.DiffieHellmanPrivateKey.PublicKey(),
 	}
 }
 
@@ -152,37 +152,37 @@ type KeyBundle struct {
 	DiffieHellmanKey *ecdh.PublicKey
 }
 
-func (kb *KeyBundle) AppendBinary(b []byte) ([]byte, error) {
-	if kb.DiffieHellmanKey == nil {
+func (keybndl *KeyBundle) AppendBinary(b []byte) ([]byte, error) {
+	if keybndl.DiffieHellmanKey == nil {
 		return nil, &errs.IsNilError{SubjectName: "DiffieHellmanKey"}
 	}
-	if kb.DiffieHellmanKey.Curve() != ecdh.X25519() {
+	if keybndl.DiffieHellmanKey.Curve() != ecdh.X25519() {
 		return nil, &errs.DHCurveError{
 			SubjectName:          "DiffieHellmanKey",
-			SubjectActualCurve:   kb.DiffieHellmanKey.Curve(),
+			SubjectActualCurve:   keybndl.DiffieHellmanKey.Curve(),
 			SubjectExpectedCurve: ecdh.X25519(),
 		}
 	}
 
-	if len(kb.SigningKey) != SizeSigningKey {
+	if len(keybndl.SigningKey) != SizeSigningKey {
 		return nil, &errs.SizeError{
 			SubjectName:         "SigningKey",
-			SubjectActualSize:   len(kb.SigningKey),
+			SubjectActualSize:   len(keybndl.SigningKey),
 			SubjectExpectedSize: SizeSigningKey,
 		}
 	}
 
 	// Encode SigningKey
-	b = append(b, kb.SigningKey...)
+	b = append(b, keybndl.SigningKey...)
 
 	// Encode DiffieHellmanKey
-	b = append(b, kb.DiffieHellmanKey.Bytes()...)
+	b = append(b, keybndl.DiffieHellmanKey.Bytes()...)
 
 	return b, nil
 }
 
-func (kb *KeyBundle) MarshalBinary() ([]byte, error) {
-	b, err := kb.AppendBinary(make([]byte, 0, SizeKeyBundle))
+func (keybndl *KeyBundle) MarshalBinary() ([]byte, error) {
+	b, err := keybndl.AppendBinary(make([]byte, 0, SizeKeyBundle))
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +190,7 @@ func (kb *KeyBundle) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-func (kb *KeyBundle) UnmarshalBinary(b []byte) error {
+func (keybndl *KeyBundle) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeKeyBundle {
@@ -202,24 +202,24 @@ func (kb *KeyBundle) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode SigningKey
-	kb.SigningKey = make([]byte, SizeSigningKey)
-	copy(kb.SigningKey, buf[:SizeSigningKey])
+	keybndl.SigningKey = make([]byte, SizeSigningKey)
+	copy(keybndl.SigningKey, buf[:SizeSigningKey])
 
 	buf = buf[SizeSigningKey:]
 
 	// Decode DiffieHellmanKey
-	dhkBytes := make([]byte, SizeDiffieHellmanKey)
-	copy(dhkBytes, buf[:SizeDiffieHellmanKey])
+	dhkeyBytes := make([]byte, SizeDiffieHellmanKey)
+	copy(dhkeyBytes, buf[:SizeDiffieHellmanKey])
 	curve := ecdh.X25519()
-	dhk, _ := curve.NewPublicKey(dhkBytes)
-	kb.DiffieHellmanKey = dhk
+	dhkey, _ := curve.NewPublicKey(dhkeyBytes)
+	keybndl.DiffieHellmanKey = dhkey
 
 	return nil
 }
 
 // Calculate the IdentityAddress from KeyBundle
-func (kb *KeyBundle) Address() (IdentityAddress, error) {
-	data, err := kb.MarshalBinary()
+func (keybndl *KeyBundle) Address() (IdentityAddress, error) {
+	data, err := keybndl.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
@@ -228,20 +228,20 @@ func (kb *KeyBundle) Address() (IdentityAddress, error) {
 }
 
 // Make a SignedKeyBundle
-func (kb *KeyBundle) Sign(privateKey ed25519.PrivateKey) (*SignedKeyBundle, error) {
-	data, err := kb.MarshalBinary()
+func (keybndl *KeyBundle) Sign(privateKey ed25519.PrivateKey) (*SignedKeyBundle, error) {
+	data, err := keybndl.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
 
 	signature := ed25519.Sign(privateKey, data)
 
-	skb := SignedKeyBundle{
-		Inner:     kb,
+	sigkeybndl := SignedKeyBundle{
+		Inner:     keybndl,
 		Signature: signature,
 	}
 
-	return &skb, nil
+	return &sigkeybndl, nil
 }
 
 type SignedKeyBundle struct {
@@ -249,28 +249,28 @@ type SignedKeyBundle struct {
 	Signature Signature
 }
 
-func (skb *SignedKeyBundle) AppendBinary(b []byte) ([]byte, error) {
-	if err := skb.Signature.CheckSize(); err != nil {
+func (sigkeybndl *SignedKeyBundle) AppendBinary(b []byte) ([]byte, error) {
+	if err := sigkeybndl.Signature.CheckSize(); err != nil {
 		return nil, err
 	}
-	if skb.Inner == nil {
+	if sigkeybndl.Inner == nil {
 		return nil, &errs.IsNilError{SubjectName: "KeyBundle"}
 	}
 
 	// Encode Inner
-	b, err := skb.Inner.AppendBinary(b)
+	b, err := sigkeybndl.Inner.AppendBinary(b)
 	if err != nil {
 		return nil, err
 	}
 
 	// Encode Signature
-	b = append(b, skb.Signature...)
+	b = append(b, sigkeybndl.Signature...)
 
 	return b, nil
 }
 
-func (skb *SignedKeyBundle) MarshalBinary() ([]byte, error) {
-	b, err := skb.AppendBinary(make([]byte, 0, SizeSignedKeyBundle))
+func (sigkeybndl *SignedKeyBundle) MarshalBinary() ([]byte, error) {
+	b, err := sigkeybndl.AppendBinary(make([]byte, 0, SizeSignedKeyBundle))
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +278,7 @@ func (skb *SignedKeyBundle) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-func (skb *SignedKeyBundle) UnmarshalBinary(b []byte) error {
+func (sigkeybndl *SignedKeyBundle) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeSignedKeyBundle {
@@ -290,19 +290,19 @@ func (skb *SignedKeyBundle) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode Inner
-	kbByte := make([]byte, SizeKeyBundle)
-	copy(kbByte, buf[:SizeKeyBundle])
-	var kb KeyBundle
-	if err := kb.UnmarshalBinary(kbByte); err != nil {
+	keybndlByte := make([]byte, SizeKeyBundle)
+	copy(keybndlByte, buf[:SizeKeyBundle])
+	var keybndl KeyBundle
+	if err := keybndl.UnmarshalBinary(keybndlByte); err != nil {
 		return err
 	}
-	skb.Inner = &kb
+	sigkeybndl.Inner = &keybndl
 
 	buf = buf[SizeKeyBundle:]
 
 	// Decode Signature
-	skb.Signature = make([]byte, SizeSignature)
-	copy(skb.Signature, buf[:SizeSignature])
+	sigkeybndl.Signature = make([]byte, SizeSignature)
+	copy(sigkeybndl.Signature, buf[:SizeSignature])
 
 	return nil
 }
@@ -310,21 +310,21 @@ func (skb *SignedKeyBundle) UnmarshalBinary(b []byte) error {
 // Verify the signed bundle
 // Returns false if the internal Sizes are wrong
 // and if the signature is invalid
-func (skb *SignedKeyBundle) Verify() error {
-	if err := skb.Signature.CheckSize(); err != nil {
+func (sigkeybndl *SignedKeyBundle) Verify() error {
+	if err := sigkeybndl.Signature.CheckSize(); err != nil {
 		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyBundle"}, err)
 	}
 
-	data, err := skb.Inner.MarshalBinary()
+	data, err := sigkeybndl.Inner.MarshalBinary()
 	if err != nil {
 		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyBundle"}, err)
 	}
 
-	if !ed25519.Verify(skb.Inner.SigningKey, data, skb.Signature) {
+	if !ed25519.Verify(sigkeybndl.Inner.SigningKey, data, sigkeybndl.Signature) {
 		return &SignatureVerificationError{
 			SubjectName: "Signed Key Bundle",
-			SigningKey:  skb.Inner.SigningKey,
-			Signature:   skb.Signature,
+			SigningKey:  sigkeybndl.Inner.SigningKey,
+			Signature:   sigkeybndl.Signature,
 		}
 	}
 

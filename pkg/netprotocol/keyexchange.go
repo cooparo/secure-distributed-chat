@@ -11,7 +11,7 @@ import (
 
 const (
 	SizeEphemeralKey              = 32
-	SizeKeyExchangeRequest        = identity.SizeIdentityAddress*2 + identity.SizeSignedKeyBundle + identity.SizeSignedNetAddressUpdate + SizeEphemeralKey
+	SizeKeyExchangeRequest        = identity.SizeIdentityAddress*2 + identity.SizeSignedKeyBundle + identity.SizeSignedNetworkUpdate + SizeEphemeralKey
 	SizeSignedKeyExchangeRequest  = SizeKeyExchangeRequest + identity.SizeSignature
 	SizeKeyExchangeResponse       = identity.SizeIdentityAddress*2 + SizeEphemeralKey + SizeRatchetKey
 	SizeSignedKeyExchangeResponse = SizeKeyExchangeResponse + identity.SizeSignature
@@ -21,60 +21,60 @@ type KeyExchangeRequest struct {
 	SendIDAddr             identity.IdentityAddress
 	RecvIDAddr             identity.IdentityAddress
 	SignedKeyBundle        *identity.SignedKeyBundle
-	SignedNetAddressUpdate *identity.SignedNetAddressUpdate
+	SignedNetAddressUpdate *identity.SignedNetworkUpdate
 	EphemeralKey           *ecdh.PublicKey
 }
 
-func (req *KeyExchangeRequest) AppendBinary(b []byte) ([]byte, error) {
-	if err := req.SendIDAddr.CheckSize(); err != nil {
+func (kexreq *KeyExchangeRequest) AppendBinary(b []byte) ([]byte, error) {
+	if err := kexreq.SendIDAddr.CheckSize(); err != nil {
 		return nil, err
 	}
-	if err := req.RecvIDAddr.CheckSize(); err != nil {
+	if err := kexreq.RecvIDAddr.CheckSize(); err != nil {
 		return nil, err
 	}
-	if req.SignedKeyBundle == nil {
+	if kexreq.SignedKeyBundle == nil {
 		return nil, &errs.IsNilError{SubjectName: "SignedKeyBundle"}
 	}
-	if req.SignedNetAddressUpdate == nil {
+	if kexreq.SignedNetAddressUpdate == nil {
 		return nil, &errs.IsNilError{SubjectName: "SignedNetAddressUpdate"}
 	}
-	if req.EphemeralKey == nil {
+	if kexreq.EphemeralKey == nil {
 		return nil, &errs.IsNilError{SubjectName: "EphemeralKey"}
 	}
-	if req.EphemeralKey.Curve() != ecdh.X25519() {
+	if kexreq.EphemeralKey.Curve() != ecdh.X25519() {
 		return nil, &errs.DHCurveError{
 			SubjectName:          "EphemeralKey",
-			SubjectActualCurve:   req.EphemeralKey.Curve(),
+			SubjectActualCurve:   kexreq.EphemeralKey.Curve(),
 			SubjectExpectedCurve: ecdh.X25519(),
 		}
 	}
 
 	// Encode SendIDAddr
-	b = append(b, req.SendIDAddr...)
+	b = append(b, kexreq.SendIDAddr...)
 
 	// Encode RecvIDAddr
-	b = append(b, req.RecvIDAddr...)
+	b = append(b, kexreq.RecvIDAddr...)
 
 	// Encode SignedKeyBundle
-	b, err := req.SignedKeyBundle.AppendBinary(b)
+	b, err := kexreq.SignedKeyBundle.AppendBinary(b)
 	if err != nil {
 		return nil, err
 	}
 
 	// Encode SignedNetAddressUpdate
-	b, err = req.SignedNetAddressUpdate.AppendBinary(b)
+	b, err = kexreq.SignedNetAddressUpdate.AppendBinary(b)
 	if err != nil {
 		return nil, err
 	}
 
 	// Encode EphemeralKey
-	b = append(b, req.EphemeralKey.Bytes()...)
+	b = append(b, kexreq.EphemeralKey.Bytes()...)
 
 	return b, nil
 }
 
-func (req *KeyExchangeRequest) MarshalBinary() ([]byte, error) {
-	b, err := req.AppendBinary(make([]byte, 0, SizeKeyExchangeRequest))
+func (kexreq *KeyExchangeRequest) MarshalBinary() ([]byte, error) {
+	b, err := kexreq.AppendBinary(make([]byte, 0, SizeKeyExchangeRequest))
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (req *KeyExchangeRequest) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-func (req *KeyExchangeRequest) UnmarshalBinary(b []byte) error {
+func (kexreq *KeyExchangeRequest) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeKeyExchangeRequest {
@@ -94,63 +94,63 @@ func (req *KeyExchangeRequest) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode SendIDAddr
-	req.SendIDAddr = make([]byte, identity.SizeIdentityAddress)
-	copy(req.SendIDAddr, buf[:identity.SizeIdentityAddress])
+	kexreq.SendIDAddr = make([]byte, identity.SizeIdentityAddress)
+	copy(kexreq.SendIDAddr, buf[:identity.SizeIdentityAddress])
 
 	buf = buf[identity.SizeIdentityAddress:]
 
 	// Decode RecvIDAddr
-	req.RecvIDAddr = make([]byte, identity.SizeIdentityAddress)
-	copy(req.RecvIDAddr, buf[:identity.SizeIdentityAddress])
+	kexreq.RecvIDAddr = make([]byte, identity.SizeIdentityAddress)
+	copy(kexreq.RecvIDAddr, buf[:identity.SizeIdentityAddress])
 
 	buf = buf[identity.SizeIdentityAddress:]
 
 	// Decode SignedKeyBundle
-	skbByte := make([]byte, identity.SizeSignedKeyBundle)
-	copy(skbByte, buf[:identity.SizeSignedKeyBundle])
-	var skb identity.SignedKeyBundle
-	if err := skb.UnmarshalBinary(skbByte); err != nil {
+	sigkeybndlByte := make([]byte, identity.SizeSignedKeyBundle)
+	copy(sigkeybndlByte, buf[:identity.SizeSignedKeyBundle])
+	var sigkeybndl identity.SignedKeyBundle
+	if err := sigkeybndl.UnmarshalBinary(sigkeybndlByte); err != nil {
 		return err
 	}
-	req.SignedKeyBundle = &skb
+	kexreq.SignedKeyBundle = &sigkeybndl
 
 	buf = buf[identity.SizeSignedKeyBundle:]
 
 	// Decode SignedNetAddressUpdate
-	snauByte := make([]byte, identity.SizeSignedNetAddressUpdate)
-	copy(snauByte, buf[:identity.SizeSignedNetAddressUpdate])
-	var snau identity.SignedNetAddressUpdate
-	if err := snau.UnmarshalBinary(snauByte); err != nil {
+	signetupdByte := make([]byte, identity.SizeSignedNetworkUpdate)
+	copy(signetupdByte, buf[:identity.SizeSignedNetworkUpdate])
+	var signetupd identity.SignedNetworkUpdate
+	if err := signetupd.UnmarshalBinary(signetupdByte); err != nil {
 		return err
 	}
-	req.SignedNetAddressUpdate = &snau
+	kexreq.SignedNetAddressUpdate = &signetupd
 
-	buf = buf[identity.SizeSignedNetAddressUpdate:]
+	buf = buf[identity.SizeSignedNetworkUpdate:]
 
 	// Decode EphemeralKey
-	ekByte := make([]byte, SizeEphemeralKey)
-	copy(ekByte, buf[:SizeEphemeralKey])
+	ekeyByte := make([]byte, SizeEphemeralKey)
+	copy(ekeyByte, buf[:SizeEphemeralKey])
 	curve := ecdh.X25519()
-	ek, _ := curve.NewPublicKey(ekByte)
-	req.EphemeralKey = ek
+	ekey, _ := curve.NewPublicKey(ekeyByte)
+	kexreq.EphemeralKey = ekey
 
 	return nil
 }
 
-func (req *KeyExchangeRequest) Sign(privateKey ed25519.PrivateKey) (*SignedKeyExchangeRequest, error) {
-	data, err := req.MarshalBinary()
+func (kexreq *KeyExchangeRequest) Sign(privateKey ed25519.PrivateKey) (*SignedKeyExchangeRequest, error) {
+	data, err := kexreq.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
 
 	signature := ed25519.Sign(privateKey, data)
 
-	sreq := SignedKeyExchangeRequest{
-		Inner:     req,
+	sigkexreq := SignedKeyExchangeRequest{
+		Inner:     kexreq,
 		Signature: signature,
 	}
 
-	return &sreq, nil
+	return &sigkexreq, nil
 }
 
 type SignedKeyExchangeRequest struct {
@@ -158,28 +158,28 @@ type SignedKeyExchangeRequest struct {
 	Signature identity.Signature
 }
 
-func (sreq *SignedKeyExchangeRequest) AppendBinary(b []byte) ([]byte, error) {
-	if err := sreq.Signature.CheckSize(); err != nil {
+func (sigkexreq *SignedKeyExchangeRequest) AppendBinary(b []byte) ([]byte, error) {
+	if err := sigkexreq.Signature.CheckSize(); err != nil {
 		return nil, err
 	}
-	if sreq.Inner == nil {
+	if sigkexreq.Inner == nil {
 		return nil, &errs.IsNilError{SubjectName: "Inner"}
 	}
 
 	// Encode Inner
-	b, err := sreq.Inner.AppendBinary(b)
+	b, err := sigkexreq.Inner.AppendBinary(b)
 	if err != nil {
 		return nil, err
 	}
 
 	// Encode Signature
-	b = append(b, sreq.Signature...)
+	b = append(b, sigkexreq.Signature...)
 
 	return b, nil
 }
 
-func (sreq *SignedKeyExchangeRequest) MarshalBinary() ([]byte, error) {
-	b, err := sreq.AppendBinary(make([]byte, 0, SizeSignedKeyExchangeRequest))
+func (sigkexreq *SignedKeyExchangeRequest) MarshalBinary() ([]byte, error) {
+	b, err := sigkexreq.AppendBinary(make([]byte, 0, SizeSignedKeyExchangeRequest))
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +187,7 @@ func (sreq *SignedKeyExchangeRequest) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-func (sreq *SignedKeyExchangeRequest) UnmarshalBinary(b []byte) error {
+func (sigkexreq *SignedKeyExchangeRequest) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeSignedKeyExchangeRequest {
@@ -199,38 +199,38 @@ func (sreq *SignedKeyExchangeRequest) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode Inner
-	reqByte := make([]byte, SizeKeyExchangeRequest)
-	copy(reqByte, buf[:SizeKeyExchangeRequest])
-	var req KeyExchangeRequest
-	if err := req.UnmarshalBinary(reqByte); err != nil {
+	kexreqByte := make([]byte, SizeKeyExchangeRequest)
+	copy(kexreqByte, buf[:SizeKeyExchangeRequest])
+	var kexreq KeyExchangeRequest
+	if err := kexreq.UnmarshalBinary(kexreqByte); err != nil {
 		return err
 	}
-	sreq.Inner = &req
+	sigkexreq.Inner = &kexreq
 
 	buf = buf[SizeKeyExchangeRequest:]
 
 	// Decode Signature
-	sreq.Signature = make([]byte, identity.SizeSignature)
-	copy(sreq.Signature, buf[:identity.SizeSignature])
+	sigkexreq.Signature = make([]byte, identity.SizeSignature)
+	copy(sigkexreq.Signature, buf[:identity.SizeSignature])
 
 	return nil
 }
 
-func (sreq *SignedKeyExchangeRequest) Verify(publicKey ed25519.PublicKey) error {
-	if err := sreq.Signature.CheckSize(); err != nil {
+func (sigkexreq *SignedKeyExchangeRequest) Verify(publicKey ed25519.PublicKey) error {
+	if err := sigkexreq.Signature.CheckSize(); err != nil {
 		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyExchangeRequest"}, err)
 	}
 
-	data, err := sreq.Inner.MarshalBinary()
+	data, err := sigkexreq.Inner.MarshalBinary()
 	if err != nil {
 		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyExchangeRequest"}, err)
 	}
 
-	if !ed25519.Verify(publicKey, data, sreq.Signature) {
+	if !ed25519.Verify(publicKey, data, sigkexreq.Signature) {
 		return &identity.SignatureVerificationError{
 			SubjectName: "SignedKeyExchangeRequest",
 			SigningKey:  publicKey,
-			Signature:   sreq.Signature,
+			Signature:   sigkexreq.Signature,
 		}
 	}
 
@@ -245,57 +245,57 @@ type KeyExchangeResponse struct {
 	Signature    identity.Signature
 }
 
-func (resp *KeyExchangeResponse) AppendBinary(b []byte) ([]byte, error) {
-	if err := resp.SendIDAddr.CheckSize(); err != nil {
+func (kexresp *KeyExchangeResponse) AppendBinary(b []byte) ([]byte, error) {
+	if err := kexresp.SendIDAddr.CheckSize(); err != nil {
 		return nil, err
 	}
-	if err := resp.RecvIDAddr.CheckSize(); err != nil {
+	if err := kexresp.RecvIDAddr.CheckSize(); err != nil {
 		return nil, err
 	}
-	if resp.EphemeralKey == nil {
+	if kexresp.EphemeralKey == nil {
 		return nil, &errs.IsNilError{SubjectName: "EphemeralKey"}
 	}
-	if resp.EphemeralKey.Curve() != ecdh.X25519() {
+	if kexresp.EphemeralKey.Curve() != ecdh.X25519() {
 		return nil, &errs.DHCurveError{
 			SubjectName:          "EphemeralKey",
-			SubjectActualCurve:   resp.EphemeralKey.Curve(),
+			SubjectActualCurve:   kexresp.EphemeralKey.Curve(),
 			SubjectExpectedCurve: ecdh.X25519(),
 		}
 	}
-	if resp.RatchetKey == nil {
+	if kexresp.RatchetKey == nil {
 		return nil, &errs.IsNilError{SubjectName: "RatchetKey"}
 	}
-	if resp.RatchetKey.Curve() != ecdh.X25519() {
+	if kexresp.RatchetKey.Curve() != ecdh.X25519() {
 		return nil, &errs.DHCurveError{
 			SubjectName:          "RatchetKey",
-			SubjectActualCurve:   resp.RatchetKey.Curve(),
+			SubjectActualCurve:   kexresp.RatchetKey.Curve(),
 			SubjectExpectedCurve: ecdh.X25519(),
 		}
 	}
-	if err := resp.Signature.CheckSize(); err != nil {
+	if err := kexresp.Signature.CheckSize(); err != nil {
 		return nil, err
 	}
 
 	// Encode SendIDAddr
-	b = append(b, resp.SendIDAddr...)
+	b = append(b, kexresp.SendIDAddr...)
 
 	// Encode RecvIDAddr
-	b = append(b, resp.RecvIDAddr...)
+	b = append(b, kexresp.RecvIDAddr...)
 
 	// Encode EphemeralKey
-	b = append(b, resp.EphemeralKey.Bytes()...)
+	b = append(b, kexresp.EphemeralKey.Bytes()...)
 
 	// Encode RatchetKey
-	b = append(b, resp.RatchetKey.Bytes()...)
+	b = append(b, kexresp.RatchetKey.Bytes()...)
 
 	// Encode Signature
-	b = append(b, resp.Signature...)
+	b = append(b, kexresp.Signature...)
 
 	return b, nil
 }
 
-func (resp *KeyExchangeResponse) MarshalBinary() ([]byte, error) {
-	b, err := resp.AppendBinary(make([]byte, 0, SizeKeyExchangeResponse))
+func (kexresp *KeyExchangeResponse) MarshalBinary() ([]byte, error) {
+	b, err := kexresp.AppendBinary(make([]byte, 0, SizeKeyExchangeResponse))
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +303,7 @@ func (resp *KeyExchangeResponse) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-func (resp *KeyExchangeResponse) UnmarshalBinary(b []byte) error {
+func (kexresp *KeyExchangeResponse) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeKeyExchangeResponse {
@@ -315,56 +315,56 @@ func (resp *KeyExchangeResponse) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode SendIDAddr
-	resp.SendIDAddr = make([]byte, identity.SizeIdentityAddress)
-	copy(resp.SendIDAddr, buf[:identity.SizeIdentityAddress])
+	kexresp.SendIDAddr = make([]byte, identity.SizeIdentityAddress)
+	copy(kexresp.SendIDAddr, buf[:identity.SizeIdentityAddress])
 
 	buf = buf[identity.SizeIdentityAddress:]
 
 	// Decode RecvIDAddr
-	resp.RecvIDAddr = make([]byte, identity.SizeIdentityAddress)
-	copy(resp.RecvIDAddr, buf[:identity.SizeIdentityAddress])
+	kexresp.RecvIDAddr = make([]byte, identity.SizeIdentityAddress)
+	copy(kexresp.RecvIDAddr, buf[:identity.SizeIdentityAddress])
 
 	buf = buf[identity.SizeIdentityAddress:]
 
 	// Decode EphemeralKey
-	ekByte := make([]byte, SizeEphemeralKey)
-	copy(ekByte, buf[:SizeEphemeralKey])
-	ekCurve := ecdh.X25519()
-	ek, _ := ekCurve.NewPublicKey(ekByte)
-	resp.EphemeralKey = ek
+	ekeyByte := make([]byte, SizeEphemeralKey)
+	copy(ekeyByte, buf[:SizeEphemeralKey])
+	ekeyCurve := ecdh.X25519()
+	ekey, _ := ekeyCurve.NewPublicKey(ekeyByte)
+	kexresp.EphemeralKey = ekey
 
 	buf = buf[SizeEphemeralKey:]
 
 	// Decode RatchetKey
-	rkByte := make([]byte, SizeRatchetKey)
-	copy(rkByte, buf[:SizeRatchetKey])
-	rkCurve := ecdh.X25519()
-	rk, _ := rkCurve.NewPublicKey(rkByte)
-	resp.RatchetKey = rk
+	rkeyByte := make([]byte, SizeRatchetKey)
+	copy(rkeyByte, buf[:SizeRatchetKey])
+	rkeyCurve := ecdh.X25519()
+	rkey, _ := rkeyCurve.NewPublicKey(rkeyByte)
+	kexresp.RatchetKey = rkey
 
 	buf = buf[SizeRatchetKey:]
 
 	// Decode Signature
-	resp.Signature = make([]byte, identity.SizeSignature)
-	copy(resp.Signature, buf[:identity.SizeSignature])
+	kexresp.Signature = make([]byte, identity.SizeSignature)
+	copy(kexresp.Signature, buf[:identity.SizeSignature])
 
 	return nil
 }
 
-func (resp *KeyExchangeResponse) Sign(privateKey ed25519.PrivateKey) (*SignedKeyExchangeResponse, error) {
-	data, err := resp.MarshalBinary()
+func (kexresp *KeyExchangeResponse) Sign(privateKey ed25519.PrivateKey) (*SignedKeyExchangeResponse, error) {
+	data, err := kexresp.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
 
 	signature := ed25519.Sign(privateKey, data)
 
-	sresp := SignedKeyExchangeResponse{
-		Inner:     resp,
+	sigkexresp := SignedKeyExchangeResponse{
+		Inner:     kexresp,
 		Signature: signature,
 	}
 
-	return &sresp, nil
+	return &sigkexresp, nil
 }
 
 type SignedKeyExchangeResponse struct {
@@ -372,28 +372,28 @@ type SignedKeyExchangeResponse struct {
 	Signature identity.Signature
 }
 
-func (sresp *SignedKeyExchangeResponse) AppendBinary(b []byte) ([]byte, error) {
-	if err := sresp.Signature.CheckSize(); err != nil {
+func (sigkexresp *SignedKeyExchangeResponse) AppendBinary(b []byte) ([]byte, error) {
+	if err := sigkexresp.Signature.CheckSize(); err != nil {
 		return nil, err
 	}
-	if sresp.Inner == nil {
+	if sigkexresp.Inner == nil {
 		return nil, &errs.IsNilError{SubjectName: "Inner"}
 	}
 
 	// Encode Inner
-	b, err := sresp.Inner.AppendBinary(b)
+	b, err := sigkexresp.Inner.AppendBinary(b)
 	if err != nil {
 		return nil, err
 	}
 
 	// Encode Signature
-	b = append(b, sresp.Signature...)
+	b = append(b, sigkexresp.Signature...)
 
 	return b, nil
 }
 
-func (sresp *SignedKeyExchangeResponse) MarshalBinary() ([]byte, error) {
-	b, err := sresp.AppendBinary(make([]byte, 0, SizeSignedKeyExchangeResponse))
+func (sigkexresp *SignedKeyExchangeResponse) MarshalBinary() ([]byte, error) {
+	b, err := sigkexresp.AppendBinary(make([]byte, 0, SizeSignedKeyExchangeResponse))
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +401,7 @@ func (sresp *SignedKeyExchangeResponse) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-func (sresp *SignedKeyExchangeResponse) UnmarshalBinary(b []byte) error {
+func (sigkexresp *SignedKeyExchangeResponse) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeSignedKeyExchangeResponse {
@@ -413,38 +413,38 @@ func (sresp *SignedKeyExchangeResponse) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode Inner
-	respByte := make([]byte, SizeKeyExchangeResponse)
-	copy(respByte, buf[:SizeKeyExchangeResponse])
-	var resp KeyExchangeResponse
-	if err := resp.UnmarshalBinary(respByte); err != nil {
+	kexrespByte := make([]byte, SizeKeyExchangeResponse)
+	copy(kexrespByte, buf[:SizeKeyExchangeResponse])
+	var kexresp KeyExchangeResponse
+	if err := kexresp.UnmarshalBinary(kexrespByte); err != nil {
 		return err
 	}
-	sresp.Inner = &resp
+	sigkexresp.Inner = &kexresp
 
 	buf = buf[SizeKeyExchangeResponse:]
 
 	// Decode Signature
-	sresp.Signature = make([]byte, identity.SizeSignature)
-	copy(sresp.Signature, buf[:identity.SizeSignature])
+	sigkexresp.Signature = make([]byte, identity.SizeSignature)
+	copy(sigkexresp.Signature, buf[:identity.SizeSignature])
 
 	return nil
 }
 
-func (sresp *SignedKeyExchangeResponse) Verify(publicKey ed25519.PublicKey) error {
-	if err := sresp.Signature.CheckSize(); err != nil {
+func (sigkexresp *SignedKeyExchangeResponse) Verify(publicKey ed25519.PublicKey) error {
+	if err := sigkexresp.Signature.CheckSize(); err != nil {
 		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyExchangeResponse"}, err)
 	}
 
-	data, err := sresp.Inner.MarshalBinary()
+	data, err := sigkexresp.Inner.MarshalBinary()
 	if err != nil {
 		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyExchangeResponse"}, err)
 	}
 
-	if !ed25519.Verify(publicKey, data, sresp.Signature) {
+	if !ed25519.Verify(publicKey, data, sigkexresp.Signature) {
 		return &identity.SignatureVerificationError{
 			SubjectName: "SignedKeyExchangeResponse",
 			SigningKey:  publicKey,
-			Signature:   sresp.Signature,
+			Signature:   sigkexresp.Signature,
 		}
 	}
 

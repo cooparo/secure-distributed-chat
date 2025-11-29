@@ -3,14 +3,16 @@ package nethandle
 import (
 	"context"
 	"net"
+	"time"
 
+	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
-func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
+func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
 	msghdrByte := make([]byte, netprotocol.SizeMessageHeader)
 	if _, err := conn.Read(msghdrByte); err != nil {
 		return err
@@ -24,7 +26,8 @@ func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManag
 
 	sess, ok := mgr.Get(msghdr.SendIDAddr.Base32())
 	if !ok {
-		// TODO: Check if session in database
+		// TODO: Check if session in database and reconstruct
+
 		return &NoSessionError{PeerAddress: msghdr.SendIDAddr}
 	}
 
@@ -46,7 +49,12 @@ func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManag
 
 	logger.Get().Debugf("Message from %s decrypted to %s", msghdr.SendIDAddr.Base32(), plaintext)
 
-	// TODO: store message
+	query.AddMessage(ctx, repository.AddMessageParams{
+		SenderAddress:   msghdr.SendIDAddr.Base32(),
+		ReceiverAddress: mgr.Address.Base32(),
+		Time:            time.Now().Unix(),
+		Contents:        string(plaintext),
+	})
 
 	return nil
 }

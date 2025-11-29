@@ -63,10 +63,10 @@ func GenerateIdentity() (*PrivateKeyBundle, error) {
 		return nil, err
 	}
 
-	pkb := PrivateKeyBundle{
+	privkeybndl := PrivateKeyBundle{
 		SigningPrivateKey:       privSign,
 		DiffieHellmanPrivateKey: privdh,
 	}
 
-	return &pkb, nil
+	return &privkeybndl, nil
 }

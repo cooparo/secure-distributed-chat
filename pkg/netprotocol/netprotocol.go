@@ -17,6 +17,8 @@ const (
 	PacketTypeMessage
 	PacketTypeKeyExchangeRequest
 	PacketTypeKeyExchangeResponse
+	PacketTypeDiscoveryRequest
+	PacketTypeDiscoveryResponse
 )
 
 type MainHeader struct {
@@ -24,23 +26,23 @@ type MainHeader struct {
 	PacketType PacketType
 }
 
-func (mh *MainHeader) AppendBinary(b []byte) ([]byte, error) {
+func (mainhdr *MainHeader) AppendBinary(b []byte) ([]byte, error) {
 	// Encode Version
-	b = append(b, byte(mh.Version))
+	b = append(b, byte(mainhdr.Version))
 
 	// Encode PacketType
-	b = append(b, byte(mh.PacketType))
+	b = append(b, byte(mainhdr.PacketType))
 
 	return b, nil
 }
 
-func (mh *MainHeader) MarshalBinary() ([]byte, error) {
-	b, _ := mh.AppendBinary(make([]byte, 0, SizeMainHeader))
+func (mainhdr *MainHeader) MarshalBinary() ([]byte, error) {
+	b, _ := mainhdr.AppendBinary(make([]byte, 0, SizeMainHeader))
 
 	return b, nil
 }
 
-func (mh *MainHeader) UnmarshalBinary(b []byte) error {
+func (mainhdr *MainHeader) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeMainHeader {
@@ -52,12 +54,12 @@ func (mh *MainHeader) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode Version
-	mh.Version = Version(b[0])
+	mainhdr.Version = Version(b[0])
 
 	buf = buf[SizeVersion:]
 
 	// Decode PacketType
-	mh.PacketType = PacketType(buf[0])
+	mainhdr.PacketType = PacketType(buf[0])
 
 	return nil
 }

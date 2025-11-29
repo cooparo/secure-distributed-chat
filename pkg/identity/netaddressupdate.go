@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	SizeTimestamp              = 8
-	SizeNetAddress             = 16
-	SizeNetAddressUpdate       = SizeTimestamp + SizeNetAddress
-	SizeSignedNetAddressUpdate = SizeNetAddressUpdate + SizeSignature
+	SizeTimestamp           = 8
+	SizeNetAddress          = 16
+	SizeNetAddressUpdate    = SizeTimestamp + SizeNetAddress
+	SizeSignedNetworkUpdate = SizeNetAddressUpdate + SizeSignature
 )
 
 type Timestamp int64
@@ -54,34 +54,34 @@ func (t *Timestamp) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-type NetAddressUpdate struct {
+type NetworkUpdate struct {
 	Timestamp  Timestamp
 	NetAddress net.IP
 }
 
-func (nau *NetAddressUpdate) AppendBinary(b []byte) ([]byte, error) {
-	if len(nau.NetAddress) != SizeNetAddress {
+func (netupd *NetworkUpdate) AppendBinary(b []byte) ([]byte, error) {
+	if len(netupd.NetAddress) != SizeNetAddress {
 		return nil, &errs.SizeError{
 			SubjectName:         "NetAddress",
-			SubjectActualSize:   len(nau.NetAddress),
+			SubjectActualSize:   len(netupd.NetAddress),
 			SubjectExpectedSize: SizeNetAddress,
 		}
 	}
 
 	// Encode Timestamp
-	b, err := nau.Timestamp.AppendBinary(b)
+	b, err := netupd.Timestamp.AppendBinary(b)
 	if err != nil {
 		return nil, err
 	}
 
 	// Encode NetAddress
-	b = append(b, nau.NetAddress...)
+	b = append(b, netupd.NetAddress...)
 
 	return b, nil
 }
 
-func (nau *NetAddressUpdate) MarshalBinary() ([]byte, error) {
-	b, err := nau.AppendBinary(make([]byte, 0, SizeNetAddressUpdate))
+func (netupd *NetworkUpdate) MarshalBinary() ([]byte, error) {
+	b, err := netupd.AppendBinary(make([]byte, 0, SizeNetAddressUpdate))
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (nau *NetAddressUpdate) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-func (nau *NetAddressUpdate) UnmarshalBinary(b []byte) error {
+func (netupd *NetworkUpdate) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeNetAddressUpdate {
@@ -101,61 +101,61 @@ func (nau *NetAddressUpdate) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode Timestamp
-	if err := nau.Timestamp.UnmarshalBinary(buf); err != nil {
+	if err := netupd.Timestamp.UnmarshalBinary(buf); err != nil {
 		return err
 	}
 	buf = buf[SizeTimestamp:]
 
 	// Decode NetAddress
-	copy(nau.NetAddress, buf[:SizeNetAddressUpdate])
+	copy(netupd.NetAddress, buf[:SizeNetAddressUpdate])
 
 	return nil
 }
 
-// Make a SignedNetAddressUpdate
-func (nau *NetAddressUpdate) Sign(privateKey ed25519.PrivateKey) (*SignedNetAddressUpdate, error) {
-	data, err := nau.MarshalBinary()
+// Make a SignedNetworkUpdate
+func (netupd *NetworkUpdate) Sign(privateKey ed25519.PrivateKey) (*SignedNetworkUpdate, error) {
+	data, err := netupd.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
 
 	signature := ed25519.Sign(privateKey, data)
 
-	snau := SignedNetAddressUpdate{
-		Inner:     nau,
+	signetupd := SignedNetworkUpdate{
+		Inner:     netupd,
 		Signature: signature,
 	}
 
-	return &snau, nil
+	return &signetupd, nil
 }
 
-type SignedNetAddressUpdate struct {
-	Inner     *NetAddressUpdate
+type SignedNetworkUpdate struct {
+	Inner     *NetworkUpdate
 	Signature Signature
 }
 
-func (snau *SignedNetAddressUpdate) AppendBinary(b []byte) ([]byte, error) {
-	if err := snau.Signature.CheckSize(); err != nil {
+func (signetupd *SignedNetworkUpdate) AppendBinary(b []byte) ([]byte, error) {
+	if err := signetupd.Signature.CheckSize(); err != nil {
 		return nil, err
 	}
-	if snau.Inner == nil {
+	if signetupd.Inner == nil {
 		return nil, &errs.IsNilError{SubjectName: "NetAddressUpdate"}
 	}
 
 	// Encode Inner
-	b, err := snau.Inner.AppendBinary(b)
+	b, err := signetupd.Inner.AppendBinary(b)
 	if err != nil {
 		return nil, err
 	}
 
 	// Encode Signature
-	b = append(b, snau.Signature...)
+	b = append(b, signetupd.Signature...)
 
 	return b, nil
 }
 
-func (snau *SignedNetAddressUpdate) MarshalBinary() ([]byte, error) {
-	b, err := snau.AppendBinary(make([]byte, 0, SizeSignedNetAddressUpdate))
+func (signetupd *SignedNetworkUpdate) MarshalBinary() ([]byte, error) {
+	b, err := signetupd.AppendBinary(make([]byte, 0, SizeSignedNetworkUpdate))
 	if err != nil {
 		return nil, err
 	}
@@ -163,50 +163,50 @@ func (snau *SignedNetAddressUpdate) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-func (snau *SignedNetAddressUpdate) UnmarshalBinary(b []byte) error {
+func (signetupd *SignedNetworkUpdate) UnmarshalBinary(b []byte) error {
 	buf := b
 
-	if len(buf) != SizeSignedNetAddressUpdate {
+	if len(buf) != SizeSignedNetworkUpdate {
 		return &errs.SizeError{
 			SubjectName:         "SignedNetAddressUpdate",
 			SubjectActualSize:   len(buf),
-			SubjectExpectedSize: SizeSignedNetAddressUpdate,
+			SubjectExpectedSize: SizeSignedNetworkUpdate,
 		}
 	}
 
 	// Decode Inner
-	nauByte := make([]byte, SizeNetAddressUpdate)
-	copy(nauByte, buf[:SizeNetAddressUpdate])
-	var nau NetAddressUpdate
-	if err := nau.UnmarshalBinary(nauByte); err != nil {
+	netupdByte := make([]byte, SizeNetAddressUpdate)
+	copy(netupdByte, buf[:SizeNetAddressUpdate])
+	var netupd NetworkUpdate
+	if err := netupd.UnmarshalBinary(netupdByte); err != nil {
 		return err
 	}
-	snau.Inner = &nau
+	signetupd.Inner = &netupd
 
 	buf = buf[SizeNetAddressUpdate:]
 
 	// Decode Signature
-	snau.Signature = make([]byte, SizeSignature)
-	copy(snau.Signature, buf[:SizeSignature])
+	signetupd.Signature = make([]byte, SizeSignature)
+	copy(signetupd.Signature, buf[:SizeSignature])
 
 	return nil
 }
 
-func (snau *SignedNetAddressUpdate) Verify(publicKey ed25519.PublicKey) error {
-	if err := snau.Signature.CheckSize(); err != nil {
+func (signetupd *SignedNetworkUpdate) Verify(publicKey ed25519.PublicKey) error {
+	if err := signetupd.Signature.CheckSize(); err != nil {
 		return errors.Join(&errs.VerificationError{SubjectName: "SignedNetAddressUpdate"}, err)
 	}
 
-	data, err := snau.Inner.MarshalBinary()
+	data, err := signetupd.Inner.MarshalBinary()
 	if err != nil {
 		return errors.Join(&errs.VerificationError{SubjectName: "SignedNetAddressUpdate"}, err)
 	}
 
-	if !ed25519.Verify(publicKey, data, snau.Signature) {
+	if !ed25519.Verify(publicKey, data, signetupd.Signature) {
 		return &SignatureVerificationError{
 			SubjectName: "SignedNetAddress",
 			SigningKey:  publicKey,
-			Signature:   snau.Signature,
+			Signature:   signetupd.Signature,
 		}
 	}
 

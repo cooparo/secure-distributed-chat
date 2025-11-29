@@ -68,8 +68,8 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *ses
 			default:
 			}
 			conn.SetReadDeadline(time.Now().Add(connTimeout))
-			mhByte := make([]byte, netprotocol.SizeMainHeader)
-			_, err := conn.Read(mhByte)
+			mainhdrByte := make([]byte, netprotocol.SizeMainHeader)
+			_, err := conn.Read(mainhdrByte)
 			if err != nil {
 				// Timeout
 				if errors.Is(err, os.ErrDeadlineExceeded) {
@@ -87,29 +87,29 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *ses
 				logger.Get().Errorf("Got error reading from %s: %s", conn.RemoteAddr().String(), err.Error())
 				return
 			}
-			var mh netprotocol.MainHeader
-			if err := mh.UnmarshalBinary(mhByte); err != nil {
+			var mainhdr netprotocol.MainHeader
+			if err := mainhdr.UnmarshalBinary(mainhdrByte); err != nil {
 				logger.Get().Errorf("Got an error ")
 				return
 			}
 
-			packetName, ok := packetTypeName[mh.PacketType]
+			pktName, ok := packetTypeName[mainhdr.PacketType]
 			if !ok {
-				logger.Get().Warnf("Unknown PacketType with id %#x", mh.PacketType)
+				logger.Get().Warnf("Unknown PacketType with id %#x", mainhdr.PacketType)
 				return
 			}
 
-			logger.Get().Infof("Got packet with version %d and PacketType %s (%#x)", mh.Version, packetName, mh.PacketType)
+			logger.Get().Infof("Got packet with version %d and PacketType %s (%#x)", mainhdr.Version, pktName, mainhdr.PacketType)
 
-			handler, ok := packetTypeHandler[mh.PacketType]
+			handler, ok := packetTypeHandler[mainhdr.PacketType]
 			if !ok {
-				logger.Get().Warnf("No handler for PacketType %s (%#x)", packetName, mh.PacketType)
+				logger.Get().Warnf("No handler for PacketType %s (%#x)", pktName, mainhdr.PacketType)
 				return
 			}
 
 			err = handler(ctx, conn, mgr)
 			if err != nil {
-				logger.Get().Warnf("Got error handling PacketType %s (%#x) from %s: %s", packetName, mh.PacketType, conn.RemoteAddr().String(), err.Error())
+				logger.Get().Warnf("Got error handling PacketType %s (%#x) from %s: %s", pktName, mainhdr.PacketType, conn.RemoteAddr().String(), err.Error())
 				return
 			}
 		}

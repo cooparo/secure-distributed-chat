@@ -15,51 +15,51 @@ const (
 )
 
 type MessageHeader struct {
-	IdentityAddress identity.IdentityAddress
-	DataLength      uint16
-	PrevChainCount  uint8
-	ChainCount      uint8
-	RatchetKey      *ecdh.PublicKey
+	SendIDAddr     identity.IdentityAddress
+	DataLength     uint16
+	PrevChainCount uint8
+	ChainCount     uint8
+	RatchetKey     *ecdh.PublicKey
 }
 
-func (mh *MessageHeader) AppendBinary(b []byte) ([]byte, error) {
-	if err := mh.IdentityAddress.CheckSize(); err != nil {
+func (msghdr *MessageHeader) AppendBinary(b []byte) ([]byte, error) {
+	if err := msghdr.SendIDAddr.CheckSize(); err != nil {
 		return nil, err
 	}
-	if mh.RatchetKey == nil {
+	if msghdr.RatchetKey == nil {
 		return nil, &errs.IsNilError{SubjectName: "RatchetKey"}
 	}
-	if mh.RatchetKey.Curve() != ecdh.X25519() {
+	if msghdr.RatchetKey.Curve() != ecdh.X25519() {
 		return nil, &errs.DHCurveError{
 			SubjectName:          "RatchetKey",
-			SubjectActualCurve:   mh.RatchetKey.Curve(),
+			SubjectActualCurve:   msghdr.RatchetKey.Curve(),
 			SubjectExpectedCurve: ecdh.X25519(),
 		}
 	}
 
 	// Encode IdentityAddress
-	b = append(b, mh.IdentityAddress...)
+	b = append(b, msghdr.SendIDAddr...)
 
 	// Encode DataLength
-	dl := mh.DataLength
+	dataLen := msghdr.DataLength
 	b = append(b,
-		byte(dl>>8),
-		byte(dl))
+		byte(dataLen>>8),
+		byte(dataLen))
 
 	// Encode PrevChainCount
-	b = append(b, byte(mh.PrevChainCount))
+	b = append(b, byte(msghdr.PrevChainCount))
 
 	// Encode ChainCount
-	b = append(b, byte(mh.ChainCount))
+	b = append(b, byte(msghdr.ChainCount))
 
 	// Encode RatchetKey
-	b = append(b, mh.RatchetKey.Bytes()...)
+	b = append(b, msghdr.RatchetKey.Bytes()...)
 
 	return b, nil
 }
 
-func (mh *MessageHeader) MarshalBinary() ([]byte, error) {
-	b, err := mh.AppendBinary(make([]byte, 0, SizeMessageHeader))
+func (msghdr *MessageHeader) MarshalBinary() ([]byte, error) {
+	b, err := msghdr.AppendBinary(make([]byte, 0, SizeMessageHeader))
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (mh *MessageHeader) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-func (mh *MessageHeader) UnmarshalBinary(b []byte) error {
+func (msghdr *MessageHeader) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) != SizeMessageHeader {
@@ -79,33 +79,33 @@ func (mh *MessageHeader) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode IdentityAddress
-	mh.IdentityAddress = make([]byte, identity.SizeIdentityAddress)
-	copy(mh.IdentityAddress, buf[:identity.SizeIdentityAddress])
+	msghdr.SendIDAddr = make([]byte, identity.SizeIdentityAddress)
+	copy(msghdr.SendIDAddr, buf[:identity.SizeIdentityAddress])
 
 	buf = buf[identity.SizeIdentityAddress:]
 
 	// Decode DataLength
-	dl := uint16(buf[1]) | uint16(buf[0])<<8
-	mh.DataLength = dl
+	dataLen := uint16(buf[1]) | uint16(buf[0])<<8
+	msghdr.DataLength = dataLen
 
 	buf = buf[SizeDataLength:]
 
 	// Decode PrevChainCount
-	mh.PrevChainCount = uint8(buf[0])
+	msghdr.PrevChainCount = uint8(buf[0])
 
 	buf = buf[SizePrevChainCount:]
 
 	// Decode ChainCount
-	mh.ChainCount = uint8(buf[0])
+	msghdr.ChainCount = uint8(buf[0])
 
 	buf = buf[SizeChainCount:]
 
 	// Decode RatchetKey
-	rkByte := make([]byte, SizeRatchetKey)
-	copy(rkByte, buf[:SizeRatchetKey])
+	rkeyByte := make([]byte, SizeRatchetKey)
+	copy(rkeyByte, buf[:SizeRatchetKey])
 	curve := ecdh.X25519()
-	rk, _ := curve.NewPublicKey(rkByte)
-	mh.RatchetKey = rk
+	rkey, _ := curve.NewPublicKey(rkeyByte)
+	msghdr.RatchetKey = rkey
 
 	buf = buf[SizeRatchetKey:]
 
@@ -117,36 +117,36 @@ type Message struct {
 	Data   []byte
 }
 
-func (m *Message) AppendBinary(b []byte) ([]byte, error) {
-	if m.Header == nil {
+func (msg *Message) AppendBinary(b []byte) ([]byte, error) {
+	if msg.Header == nil {
 		return nil, &errs.IsNilError{SubjectName: "Header"}
 	}
-	if len(m.Data) != int(m.Header.DataLength) {
+	if len(msg.Data) != int(msg.Header.DataLength) {
 		return nil, &errs.SizeError{
 			SubjectName:         "Data",
-			SubjectActualSize:   len(m.Data),
-			SubjectExpectedSize: int(m.Header.DataLength),
+			SubjectActualSize:   len(msg.Data),
+			SubjectExpectedSize: int(msg.Header.DataLength),
 		}
 	}
 
 	// Encode Header
-	b, err := m.Header.AppendBinary(b)
+	b, err := msg.Header.AppendBinary(b)
 	if err != nil {
 		return nil, err
 	}
 
 	// Encode Data
-	b = append(b, m.Data...)
+	b = append(b, msg.Data...)
 
 	return b, nil
 }
 
-func (m *Message) MarshalBinary() ([]byte, error) {
-	if m.Header == nil {
+func (msg *Message) MarshalBinary() ([]byte, error) {
+	if msg.Header == nil {
 		return nil, &errs.IsNilError{SubjectName: "Header"}
 	}
-	sizeMessage := SizeMessageHeader + m.Header.DataLength
-	b, err := m.AppendBinary(make([]byte, 0, sizeMessage))
+	sizeMessage := SizeMessageHeader + msg.Header.DataLength
+	b, err := msg.AppendBinary(make([]byte, 0, sizeMessage))
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func (m *Message) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-func (m *Message) UnmarshalBinary(b []byte) error {
+func (msg *Message) UnmarshalBinary(b []byte) error {
 	buf := b
 
 	if len(buf) < SizeMessageHeader {
@@ -166,27 +166,27 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode Header
-	mhByte := make([]byte, SizeMessageHeader)
-	copy(mhByte, buf[:SizeMessageHeader])
-	var mh MessageHeader
-	if err := mh.UnmarshalBinary(mhByte); err != nil {
+	msghdrByte := make([]byte, SizeMessageHeader)
+	copy(msghdrByte, buf[:SizeMessageHeader])
+	var msghdr MessageHeader
+	if err := msghdr.UnmarshalBinary(msghdrByte); err != nil {
 		return err
 	}
-	m.Header = &mh
+	msg.Header = &msghdr
 
 	buf = buf[SizeMessageHeader:]
 
-	if len(buf) != int(m.Header.DataLength) {
+	if len(buf) != int(msg.Header.DataLength) {
 		return &errs.SizeError{
 			SubjectName:         "Data",
 			SubjectActualSize:   len(buf),
-			SubjectExpectedSize: int(m.Header.DataLength),
+			SubjectExpectedSize: int(msg.Header.DataLength),
 		}
 	}
 
 	// Decode Data
-	m.Data = make([]byte, m.Header.DataLength)
-	copy(m.Data, buf[:m.Header.DataLength])
+	msg.Data = make([]byte, msg.Header.DataLength)
+	copy(msg.Data, buf[:msg.Header.DataLength])
 
 	return nil
 }

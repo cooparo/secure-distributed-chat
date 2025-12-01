@@ -5,15 +5,17 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 	"crypto/sha3"
+	"encoding/base64"
 	"net"
 
+	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/pkg/doubleratchet"
 	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
-func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
+func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
 	sigkexreqByte := make([]byte, netprotocol.SizeSignedKeyExchangeRequest)
 	if _, err := conn.Read(sigkexreqByte); err != nil {
 		return err
@@ -56,11 +58,39 @@ func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 		return err
 	}
 
+	signetupd := kexreq.SignedNetAddressUpdate
+	netupd := signetupd.Inner
+
+	if err := signetupd.Verify(keybndl.SigningKey); err != nil {
+		return err
+	}
+
 	if err := sigkexreq.Verify(keybndl.SigningKey); err != nil {
 		return err
 	}
 
-	// TODO: store identity in database
+	encoding := base64.StdEncoding
+
+	sigkeybndlByte, err := sigkeybndl.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	sigkeybndlEncoded := make([]byte, encoding.EncodedLen(len(sigkeybndlByte)))
+	encoding.Encode(sigkeybndlEncoded, sigkeybndlByte)
+
+	signetupdByte, err := signetupd.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	signetupdEncoded := make([]byte, encoding.EncodedLen(len(signetupdByte)))
+	encoding.Encode(signetupdEncoded, signetupdByte)
+
+	query.AddIdentity(ctx, repository.AddIdentityParams{
+		Address:           kexreq.SendIDAddr.Base32(),
+		KeyBundle:         string(sigkeybndlEncoded),
+		NetAddrBundleTime: int64(netupd.Timestamp),
+		NetAddrBundle:     string(signetupdEncoded),
+	})
 
 	ephemeralPrivateKey, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
@@ -120,7 +150,7 @@ func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 	return nil
 }
 
-func handleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.SessionManager) error {
+func handleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
 	sigkexrespByte := make([]byte, netprotocol.SizeSignedKeyExchangeResponse)
 	if _, err := conn.Read(sigkexrespByte); err != nil {
 		return err

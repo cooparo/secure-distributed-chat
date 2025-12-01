@@ -8,6 +8,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/cooparo/secure-distributed-chat/internal/database"
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/internal/nethandle"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
@@ -41,6 +42,16 @@ var rootCmd = &cobra.Command{
 			logger.Get().Fatalf("Got error reading private key file: %s", err.Error())
 		}
 
+		dbURI, err := database.MakeDBURI()
+		if err != nil {
+			logger.Get().Fatalf("Got error while making database URI: %s", err.Error())
+		}
+
+		query, err := database.Connect(ctx, dbURI)
+		if err != nil {
+			logger.Get().Fatalf("Got error while connecting to database: %s", err.Error())
+		}
+
 		address, err := privKeyBundle.Public().Address()
 		if err != nil {
 			logger.Get().Fatalf("Got error calculating identity address: %s", err.Error())
@@ -58,7 +69,7 @@ var rootCmd = &cobra.Command{
 			logger.Get().Fatalf("Got error making TCP listener: %s", err.Error())
 		}
 
-		nethandle.ServeListener(ctx, ln, &wg, mgr)
+		nethandle.ServeListener(ctx, ln, &wg, mgr, query)
 
 		// TODO: setup IPC socket
 		// TODO: call ipchandle.ServeListener(ctx, ln, &wg, mgr)

@@ -44,7 +44,12 @@ func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManag
 
 	logger.Get().Debugf("Message data from %s is: %#x", msghdr.SendIDAddr.Base32(), data)
 
-	plaintext, err := sess.Ratchet.Decrypt(msghdr.RatchetKey, data, msghdrByte)
+	msg := &netprotocol.Message{
+		Header: &msghdr,
+		Data:   data,
+	}
+
+	plaintext, err := msg.Decrypt(sess.Ratchet)
 	if err != nil {
 		return err
 	}

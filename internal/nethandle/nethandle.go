@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
@@ -23,7 +24,7 @@ var packetTypeName = map[netprotocol.PacketType]string{
 	netprotocol.PacketTypeKeyExchangeResponse: "Key Exchange Response",
 }
 
-type packetHandler func(context.Context, net.Conn, *session.SessionManager) error
+type packetHandler func(context.Context, net.Conn, *session.SessionManager, *repository.Queries) error
 
 var packetTypeHandler = map[netprotocol.PacketType]packetHandler{
 	netprotocol.PacketTypeHeartbeat:           handleHeartbeat,
@@ -32,7 +33,7 @@ var packetTypeHandler = map[netprotocol.PacketType]packetHandler{
 	netprotocol.PacketTypeKeyExchangeResponse: handleKeyExchangeResponse,
 }
 
-func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr *session.SessionManager) {
+func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr *session.SessionManager, query *repository.Queries) {
 	go func() {
 		<-ctx.Done()
 		ln.Close()
@@ -50,12 +51,12 @@ func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr
 				logger.Get().Warnf("Accept error: %s", err.Error())
 				continue
 			}
-			handleConn(ctx, conn, wg, mgr)
+			handleConn(ctx, conn, wg, mgr, query)
 		}
 	}()
 }
 
-func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *session.SessionManager) {
+func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *session.SessionManager, query *repository.Queries) {
 	wg.Go(func() {
 		defer conn.Close()
 
@@ -107,7 +108,7 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *ses
 				return
 			}
 
-			err = handler(ctx, conn, mgr)
+			err = handler(ctx, conn, mgr, query)
 			if err != nil {
 				logger.Get().Warnf("Got error handling PacketType %s (%#x) from %s: %s", pktName, mainhdr.PacketType, conn.RemoteAddr().String(), err.Error())
 				return

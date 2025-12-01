@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"path/filepath"
 
+	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
+	"github.com/cooparo/secure-distributed-chat/internal/xdg"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -13,8 +16,8 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-func Connect(ctx context.Context, dbURL string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", dbURL)
+func Connect(ctx context.Context, dbURI string) (*repository.Queries, error) {
+	db, err := sql.Open("sqlite", dbURI)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +36,21 @@ func Connect(ctx context.Context, dbURL string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	migrator.Up()
+	if err := migrator.Up(); err != nil {
+		return nil, err
+	}
 
-	return db, nil
+	q := repository.New(db)
+
+	return q, nil
+}
+
+func MakeDBURI() (string, error) {
+	dir, err := xdg.GetDataHome()
+	if err != nil {
+		return "", err
+	}
+
+	path := filepath.Join(dir, "db")
+	return "file://" + path + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)", nil
 }

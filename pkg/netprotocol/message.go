@@ -192,7 +192,7 @@ func (msg *Message) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-func (msg *Message) Decrypt(ratchet doubleratchet.DoubleRatchet) ([]byte, error) {
+func (msg *Message) Decrypt(ratchet *doubleratchet.DoubleRatchet) ([]byte, error) {
 	if msg.Header == nil {
 		return nil, &errs.IsNilError{SubjectName: "MessageHeader"}
 	}
@@ -210,7 +210,7 @@ func (msg *Message) Decrypt(ratchet doubleratchet.DoubleRatchet) ([]byte, error)
 	return plaintext, nil
 }
 
-func MakeMessage(address identity.IdentityAddress, ratchet doubleratchet.DoubleRatchet, data []byte) (*Message, error) {
+func MakeMessage(address identity.IdentityAddress, ratchet *doubleratchet.DoubleRatchet, data []byte) (*Message, error) {
 	msghdr := &MessageHeader{
 		SendIDAddr:     address,
 		DataLength:     uint16(doubleratchet.EncryptedSize(data)),

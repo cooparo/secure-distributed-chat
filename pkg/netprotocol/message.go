@@ -3,6 +3,7 @@ package netprotocol
 import (
 	"crypto/ecdh"
 
+	"github.com/cooparo/secure-distributed-chat/pkg/doubleratchet"
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 )
@@ -11,7 +12,7 @@ const (
 	SizeDataLength     = 2
 	SizePrevChainCount = 1
 	SizeChainCount     = 1
-	SizeMessageHeader  = identity.SizeIdentityAddress + SizeDataLength + SizePrevChainCount + SizeChainCount
+	SizeMessageHeader  = identity.SizeIdentityAddress + SizeDataLength + SizePrevChainCount + SizeChainCount + SizeRatchetKey
 )
 
 type MessageHeader struct {
@@ -189,4 +190,49 @@ func (msg *Message) UnmarshalBinary(b []byte) error {
 	copy(msg.Data, buf[:msg.Header.DataLength])
 
 	return nil
+}
+
+func (msg *Message) Decrypt(ratchet doubleratchet.DoubleRatchet) ([]byte, error) {
+	if msg.Header == nil {
+		return nil, &errs.IsNilError{SubjectName: "MessageHeader"}
+	}
+
+	msghdrByte, err := msg.Header.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	plaintext, err := ratchet.Decrypt(msg.Header.RatchetKey, msg.Data, msghdrByte)
+	if err != nil {
+		return nil, err
+	}
+
+	return plaintext, nil
+}
+
+func MakeMessage(address identity.IdentityAddress, ratchet doubleratchet.DoubleRatchet, data []byte) (*Message, error) {
+	msghdr := &MessageHeader{
+		SendIDAddr:     address,
+		DataLength:     uint16(doubleratchet.EncryptedSize(data)),
+		PrevChainCount: uint8(ratchet.SendChain.PrevMsgCount) + 1,
+		ChainCount:     uint8(ratchet.SendChain.MsgCount) + 1,
+		RatchetKey:     ratchet.OurKey.PublicKey(),
+	}
+
+	msghdrByte, err := msghdr.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	ciphertext, err := ratchet.Encrypt(data, msghdrByte)
+	if err != nil {
+		return nil, err
+	}
+
+	msg := &Message{
+		Header: msghdr,
+		Data:   ciphertext,
+	}
+
+	return msg, nil
 }

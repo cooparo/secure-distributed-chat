@@ -107,7 +107,8 @@ func (netupd *NetworkUpdate) UnmarshalBinary(b []byte) error {
 	buf = buf[SizeTimestamp:]
 
 	// Decode NetAddress
-	copy(netupd.NetAddress, buf[:SizeNetAddressUpdate])
+	netupd.NetAddress = make(net.IP, SizeNetAddress)
+	copy(netupd.NetAddress, buf[:SizeNetAddress])
 
 	return nil
 }

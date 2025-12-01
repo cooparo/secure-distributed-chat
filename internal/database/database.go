@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"path/filepath"
 
 	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
@@ -36,8 +37,11 @@ func Connect(ctx context.Context, dbURI string) (*repository.Queries, error) {
 	if err != nil {
 		return nil, err
 	}
+	migrator.Up()
 	if err := migrator.Up(); err != nil {
-		return nil, err
+		if !errors.Is(err, migrate.ErrNoChange) {
+			return nil, err
+		}
 	}
 
 	q := repository.New(db)

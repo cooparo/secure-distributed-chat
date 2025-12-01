@@ -88,9 +88,11 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *ses
 				logger.Get().Errorf("Got error reading from %s: %s", conn.RemoteAddr().String(), err.Error())
 				return
 			}
+			logger.Get().Debugf("Nethandle MainHeader raw read: %#x\n", mainhdrByte)
+
 			var mainhdr netprotocol.MainHeader
 			if err := mainhdr.UnmarshalBinary(mainhdrByte); err != nil {
-				logger.Get().Errorf("Got an error ")
+				logger.Get().Errorf("Got an error unmarshaling mainheader: %s", err.Error())
 				return
 			}
 

@@ -20,6 +20,8 @@ func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 	if _, err := conn.Read(sigkexreqByte); err != nil {
 		return err
 	}
+	logger.Get().Debugf("Nethandle SignedKeyExchange raw read: %#x", sigkexreqByte)
+
 	var sigkexreq netprotocol.SignedKeyExchangeRequest
 	if err := sigkexreq.UnmarshalBinary(sigkexreqByte); err != nil {
 		return err
@@ -85,6 +87,7 @@ func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 	signetupdEncoded := make([]byte, encoding.EncodedLen(len(signetupdByte)))
 	encoding.Encode(signetupdEncoded, signetupdByte)
 
+	// TODO: Check the timestamp
 	query.AddIdentity(ctx, repository.AddIdentityParams{
 		Address:           kexreq.SendIDAddr.Base32(),
 		KeyBundle:         string(sigkeybndlEncoded),
@@ -155,6 +158,8 @@ func handleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.
 	if _, err := conn.Read(sigkexrespByte); err != nil {
 		return err
 	}
+	logger.Get().Debugf("Nethandle SignedKeyExchangeResponse raw read: %#x\n", sigkexrespByte)
+
 	var sigkexresp netprotocol.SignedKeyExchangeResponse
 	if err := sigkexresp.UnmarshalBinary(sigkexrespByte); err != nil {
 		return err

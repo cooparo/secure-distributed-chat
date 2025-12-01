@@ -5,7 +5,7 @@ import "github.com/cooparo/secure-distributed-chat/pkg/errs"
 const (
 	SizeRatchetKey = 32
 	SizeVersion    = 1
-	SizePacketType = 2
+	SizePacketType = 1
 	SizeMainHeader = SizeVersion + SizePacketType
 )
 

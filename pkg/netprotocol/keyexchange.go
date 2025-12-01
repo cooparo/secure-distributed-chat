@@ -242,7 +242,6 @@ type KeyExchangeResponse struct {
 	RecvIDAddr   identity.IdentityAddress
 	EphemeralKey *ecdh.PublicKey
 	RatchetKey   *ecdh.PublicKey
-	Signature    identity.Signature
 }
 
 func (kexresp *KeyExchangeResponse) AppendBinary(b []byte) ([]byte, error) {
@@ -272,9 +271,6 @@ func (kexresp *KeyExchangeResponse) AppendBinary(b []byte) ([]byte, error) {
 			SubjectExpectedCurve: ecdh.X25519(),
 		}
 	}
-	if err := kexresp.Signature.CheckSize(); err != nil {
-		return nil, err
-	}
 
 	// Encode SendIDAddr
 	b = append(b, kexresp.SendIDAddr...)
@@ -287,9 +283,6 @@ func (kexresp *KeyExchangeResponse) AppendBinary(b []byte) ([]byte, error) {
 
 	// Encode RatchetKey
 	b = append(b, kexresp.RatchetKey.Bytes()...)
-
-	// Encode Signature
-	b = append(b, kexresp.Signature...)
 
 	return b, nil
 }
@@ -343,10 +336,6 @@ func (kexresp *KeyExchangeResponse) UnmarshalBinary(b []byte) error {
 	kexresp.RatchetKey = rkey
 
 	buf = buf[SizeRatchetKey:]
-
-	// Decode Signature
-	kexresp.Signature = make([]byte, identity.SizeSignature)
-	copy(kexresp.Signature, buf[:identity.SizeSignature])
 
 	return nil
 }

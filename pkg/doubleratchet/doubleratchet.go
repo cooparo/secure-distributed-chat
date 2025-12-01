@@ -108,6 +108,10 @@ func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) error {
 	return nil
 }
 
+func EncryptedSize(plaintext []byte) int {
+	return len(plaintext) + SizeTag
+}
+
 func (r *DoubleRatchet) Encrypt(plaintext, associatedData []byte) ([]byte, error) {
 	if r.SendChain == nil {
 		return nil, &UninitializedChainError{ChainName: "Sending"}
@@ -127,9 +131,14 @@ func (r *DoubleRatchet) Encrypt(plaintext, associatedData []byte) ([]byte, error
 }
 
 func (r *DoubleRatchet) Decrypt(theirKey *ecdh.PublicKey, ciphertext, associatedData []byte) ([]byte, error) {
-	err := r.Update(theirKey)
-	if err != nil {
-		return nil, err
+
+	// TODO: Handle skipped messages
+
+	if r.TheirKey == nil || !r.TheirKey.Equal(theirKey) {
+		err := r.Update(theirKey)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	key, err := r.RecvChain.Step()

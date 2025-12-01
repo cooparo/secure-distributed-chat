@@ -17,6 +17,8 @@ func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManag
 	if _, err := conn.Read(msghdrByte); err != nil {
 		return err
 	}
+	logger.Get().Debugf("Nethandle MessageHeader raw read: %#x", msghdrByte)
+
 	var msghdr netprotocol.MessageHeader
 	if err := msghdr.UnmarshalBinary(msghdrByte); err != nil {
 		return err

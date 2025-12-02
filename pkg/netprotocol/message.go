@@ -79,7 +79,7 @@ func (msghdr *MessageHeader) UnmarshalBinary(b []byte) error {
 		}
 	}
 
-	// Decode IdentityAddress
+	// Decode SendIDAddr
 	msghdr.SendIDAddr = make([]byte, identity.SizeIdentityAddress)
 	copy(msghdr.SendIDAddr, buf[:identity.SizeIdentityAddress])
 
@@ -169,25 +169,25 @@ func (msg *Message) UnmarshalBinary(b []byte) error {
 	// Decode Header
 	msghdrByte := make([]byte, SizeMessageHeader)
 	copy(msghdrByte, buf[:SizeMessageHeader])
-	var msghdr MessageHeader
+	msghdr := &MessageHeader{}
 	if err := msghdr.UnmarshalBinary(msghdrByte); err != nil {
 		return err
 	}
-	msg.Header = &msghdr
+	msg.Header = msghdr
 
 	buf = buf[SizeMessageHeader:]
 
-	if len(buf) != int(msg.Header.DataLength) {
+	if len(buf) != int(msghdr.DataLength) {
 		return &errs.SizeError{
 			SubjectName:         "Data",
 			SubjectActualSize:   len(buf),
-			SubjectExpectedSize: int(msg.Header.DataLength),
+			SubjectExpectedSize: int(msghdr.DataLength),
 		}
 	}
 
 	// Decode Data
-	msg.Data = make([]byte, msg.Header.DataLength)
-	copy(msg.Data, buf[:msg.Header.DataLength])
+	msg.Data = make([]byte, msghdr.DataLength)
+	copy(msg.Data, buf[:msghdr.DataLength])
 
 	return nil
 }

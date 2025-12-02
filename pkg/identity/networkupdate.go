@@ -178,11 +178,11 @@ func (signetupd *SignedNetworkUpdate) UnmarshalBinary(b []byte) error {
 	// Decode Inner
 	netupdByte := make([]byte, SizeNetAddressUpdate)
 	copy(netupdByte, buf[:SizeNetAddressUpdate])
-	var netupd NetworkUpdate
+	netupd := &NetworkUpdate{}
 	if err := netupd.UnmarshalBinary(netupdByte); err != nil {
 		return err
 	}
-	signetupd.Inner = &netupd
+	signetupd.Inner = netupd
 
 	buf = buf[SizeNetAddressUpdate:]
 

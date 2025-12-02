@@ -22,7 +22,7 @@ func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 	}
 	logger.Get().Debugf("Nethandle SignedKeyExchange raw read: %#x", sigkexreqByte)
 
-	var sigkexreq netprotocol.SignedKeyExchangeRequest
+	sigkexreq := &netprotocol.SignedKeyExchangeRequest{}
 	if err := sigkexreq.UnmarshalBinary(sigkexreqByte); err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 		return err
 	}
 
-	signetupd := kexreq.SignedNetAddressUpdate
+	signetupd := kexreq.SignedNetworkUpdate
 	netupd := signetupd.Inner
 
 	if err := signetupd.Verify(keybndl.SigningKey); err != nil {
@@ -160,7 +160,7 @@ func handleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.
 	}
 	logger.Get().Debugf("Nethandle SignedKeyExchangeResponse raw read: %#x\n", sigkexrespByte)
 
-	var sigkexresp netprotocol.SignedKeyExchangeResponse
+	sigkexresp := &netprotocol.SignedKeyExchangeResponse{}
 	if err := sigkexresp.UnmarshalBinary(sigkexrespByte); err != nil {
 		return err
 	}

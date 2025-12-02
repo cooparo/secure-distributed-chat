@@ -18,11 +18,11 @@ const (
 )
 
 type KeyExchangeRequest struct {
-	SendIDAddr             identity.IdentityAddress
-	RecvIDAddr             identity.IdentityAddress
-	SignedKeyBundle        *identity.SignedKeyBundle
-	SignedNetAddressUpdate *identity.SignedNetworkUpdate
-	EphemeralKey           *ecdh.PublicKey
+	SendIDAddr          identity.IdentityAddress
+	RecvIDAddr          identity.IdentityAddress
+	SignedKeyBundle     *identity.SignedKeyBundle
+	SignedNetworkUpdate *identity.SignedNetworkUpdate
+	EphemeralKey        *ecdh.PublicKey
 }
 
 func (kexreq *KeyExchangeRequest) AppendBinary(b []byte) ([]byte, error) {
@@ -35,7 +35,7 @@ func (kexreq *KeyExchangeRequest) AppendBinary(b []byte) ([]byte, error) {
 	if kexreq.SignedKeyBundle == nil {
 		return nil, &errs.IsNilError{SubjectName: "SignedKeyBundle"}
 	}
-	if kexreq.SignedNetAddressUpdate == nil {
+	if kexreq.SignedNetworkUpdate == nil {
 		return nil, &errs.IsNilError{SubjectName: "SignedNetAddressUpdate"}
 	}
 	if kexreq.EphemeralKey == nil {
@@ -62,7 +62,7 @@ func (kexreq *KeyExchangeRequest) AppendBinary(b []byte) ([]byte, error) {
 	}
 
 	// Encode SignedNetAddressUpdate
-	b, err = kexreq.SignedNetAddressUpdate.AppendBinary(b)
+	b, err = kexreq.SignedNetworkUpdate.AppendBinary(b)
 	if err != nil {
 		return nil, err
 	}
@@ -108,22 +108,22 @@ func (kexreq *KeyExchangeRequest) UnmarshalBinary(b []byte) error {
 	// Decode SignedKeyBundle
 	sigkeybndlByte := make([]byte, identity.SizeSignedKeyBundle)
 	copy(sigkeybndlByte, buf[:identity.SizeSignedKeyBundle])
-	var sigkeybndl identity.SignedKeyBundle
+	sigkeybndl := &identity.SignedKeyBundle{}
 	if err := sigkeybndl.UnmarshalBinary(sigkeybndlByte); err != nil {
 		return err
 	}
-	kexreq.SignedKeyBundle = &sigkeybndl
+	kexreq.SignedKeyBundle = sigkeybndl
 
 	buf = buf[identity.SizeSignedKeyBundle:]
 
 	// Decode SignedNetAddressUpdate
 	signetupdByte := make([]byte, identity.SizeSignedNetworkUpdate)
 	copy(signetupdByte, buf[:identity.SizeSignedNetworkUpdate])
-	var signetupd identity.SignedNetworkUpdate
+	signetupd := &identity.SignedNetworkUpdate{}
 	if err := signetupd.UnmarshalBinary(signetupdByte); err != nil {
 		return err
 	}
-	kexreq.SignedNetAddressUpdate = &signetupd
+	kexreq.SignedNetworkUpdate = signetupd
 
 	buf = buf[identity.SizeSignedNetworkUpdate:]
 
@@ -201,11 +201,11 @@ func (sigkexreq *SignedKeyExchangeRequest) UnmarshalBinary(b []byte) error {
 	// Decode Inner
 	kexreqByte := make([]byte, SizeKeyExchangeRequest)
 	copy(kexreqByte, buf[:SizeKeyExchangeRequest])
-	var kexreq KeyExchangeRequest
+	kexreq := &KeyExchangeRequest{}
 	if err := kexreq.UnmarshalBinary(kexreqByte); err != nil {
 		return err
 	}
-	sigkexreq.Inner = &kexreq
+	sigkexreq.Inner = kexreq
 
 	buf = buf[SizeKeyExchangeRequest:]
 
@@ -404,11 +404,11 @@ func (sigkexresp *SignedKeyExchangeResponse) UnmarshalBinary(b []byte) error {
 	// Decode Inner
 	kexrespByte := make([]byte, SizeKeyExchangeResponse)
 	copy(kexrespByte, buf[:SizeKeyExchangeResponse])
-	var kexresp KeyExchangeResponse
+	kexresp := &KeyExchangeResponse{}
 	if err := kexresp.UnmarshalBinary(kexrespByte); err != nil {
 		return err
 	}
-	sigkexresp.Inner = &kexresp
+	sigkexresp.Inner = kexresp
 
 	buf = buf[SizeKeyExchangeResponse:]
 

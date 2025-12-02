@@ -292,11 +292,11 @@ func (sigkeybndl *SignedKeyBundle) UnmarshalBinary(b []byte) error {
 	// Decode Inner
 	keybndlByte := make([]byte, SizeKeyBundle)
 	copy(keybndlByte, buf[:SizeKeyBundle])
-	var keybndl KeyBundle
+	keybndl := &KeyBundle{}
 	if err := keybndl.UnmarshalBinary(keybndlByte); err != nil {
 		return err
 	}
-	sigkeybndl.Inner = &keybndl
+	sigkeybndl.Inner = keybndl
 
 	buf = buf[SizeKeyBundle:]
 

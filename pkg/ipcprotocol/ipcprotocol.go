@@ -148,10 +148,19 @@ func (m *Message) UnmarshalBinary(b []byte) error {
 } // End - Message
 
 type MsgPacket struct {
-	Timestamp int64
+	Timestamp identity.Timestamp
 	Receiver  identity.IdentityAddress
 	Sender    identity.IdentityAddress
 	Message   Message
+}
+
+func NewMsgPacket(from identity.IdentityAddress, to identity.IdentityAddress, m Message) *MsgPacket {
+	return &MsgPacket{
+		Timestamp: identity.NewTimestamp(),
+		Receiver:  to,
+		Sender:    from,
+		Message:   m,
+	}
 }
 
 func (mp *MsgPacket) AppendBinary(b []byte) ([]byte, error) {

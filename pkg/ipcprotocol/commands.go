@@ -65,15 +65,9 @@ func (mrp *MsgRespPacket) MarshalBinary() ([]byte, error) {
 func (mrp *MsgRespPacket) UnmarshalBinary(b []byte) error {
 	buf := b
 
-	if len(buf) < IpcHeaderMsgRespPacketSize {
+	if len(buf) < IpcNoMsgRespPacketSize {
 		return fmt.Errorf("ipc msg resp packet: buffer too short for header")
 	}
-
-	// Decode header
-	if err := mrp.Header.UnmarshalBinary(buf); err != nil {
-		return err
-	}
-	buf = buf[IpcHeaderMsgRespPacketSize:]
 
 	// Decode # of messages
 	n := binary.BigEndian.Uint16(buf)

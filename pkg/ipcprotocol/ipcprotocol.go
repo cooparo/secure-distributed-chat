@@ -214,7 +214,7 @@ func (mp *MsgPacket) UnmarshalBinary(b []byte) error {
 		int64(b[2])<<40 |
 		int64(b[1])<<48 |
 		int64(b[0])<<56
-	mp.Timestamp = t
+	mp.Timestamp = identity.Timestamp(t)
 
 	buf = buf[IpcTimestampSize:]
 

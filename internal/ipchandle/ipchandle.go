@@ -2,7 +2,7 @@ package ipchandle
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"net"
 	"os"
@@ -16,7 +16,7 @@ import (
 
 const connTimeout = 5 * time.Second
 
-var packetTypeName = map[ipcprotocol.CmdType]string{
+var commandTypeName = map[ipcprotocol.CmdType]string{
 	ipcprotocol.CmdTypeMsgReq:      "Message Request",
 	ipcprotocol.CmdTypeMsgResp:     "Message Response",
 	ipcprotocol.CmdTypeSendMsg:     "Send Message",
@@ -24,9 +24,9 @@ var packetTypeName = map[ipcprotocol.CmdType]string{
 	ipcprotocol.CmdTypeSendMsgNack: "Send Message NACK",
 }
 
-type packetHandler func(context.Context, net.Conn, *session.SessionManager) error
+type commandHandler func(context.Context, net.Conn, *session.SessionManager) error
 
-var packetTypeHandler = map[ipcprotocol.CmdType]packetHandler{
+var commandTypeHandler = map[ipcprotocol.CmdType]commandHandler{
 	ipcprotocol.CmdTypeMsgReq:      HandleCmdMsgReq,
 	ipcprotocol.CmdTypeMsgResp:     HandleCmdMsgResp,
 	ipcprotocol.CmdTypeSendMsg:     HandleCmdSendMsg,
@@ -42,113 +42,80 @@ func ServeIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, 
 		ln.Close()
 	}()
 
-	// TODO:
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+				logger.Get().Warnf("Accept error: %s", err.Error())
+				continue
+			}
+			handleIpcConn(ctx, conn, wg, mgr)
+		}
+	}()
 }
 
-func handleIpcConnection(c net.Conn) {
-	defer c.Close()
+func handleIpcConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *session.SessionManager) {
+	wg.Go(func() {
+		defer conn.Close()
 
-	err := handleIpcPackets(c)
-	if err != nil {
-		// Write the error to stderr and end the function
-		logger.Get().Error("IPC Connection Error: " + err.Error())
-		return
-	}
-}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 
-func handleIpcPackets(c net.Conn) error {
-	// Read header
-	headerBuf := make([]byte, IpcHeaderSize)
-	_, err := io.ReadFull(c, headerBuf)
+			conn.SetReadDeadline(time.Now().Add(connTimeout))
+			hBytes := make([]byte, ipcprotocol.IpcHeaderSize)
 
-	if err != nil {
-		if err != io.EOF {
-			logger.Get().Error("Header Error: " + err.Error())
+			if _, err := conn.Read(hBytes); err != nil {
+				// Timeout
+				if errors.Is(err, os.ErrDeadlineExceeded) {
+					logger.Get().Warnf("IPC Connection timed out")
+					return
+				}
+
+				// No data read (normally because the other end closed)
+				if err == io.EOF {
+					logger.Get().Warnf("IPC Connection closed")
+					return
+				}
+
+				// Generic error log
+				logger.Get().Errorf("IPC Connection got error reading: %s", err.Error())
+				return
+			}
+
+			var h ipcprotocol.Header
+			if err := h.UnmarshalBinary(hBytes); err != nil {
+				logger.Get().Errorf("Got an error in the IPC header")
+				return
+			}
+
+			commandName, ok := commandTypeName[h.CmdType]
+
+			if !ok {
+				logger.Get().Warnf("Unknown CmdType with id %#x", h.CmdType)
+				return
+			}
+
+			logger.Get().Infof("Got command with version %d and CmdType %s (%#x)", h.Version, commandName, h.CmdType)
+
+			handler, ok := commandTypeHandler[h.CmdType]
+			if !ok {
+				logger.Get().Warnf("No handler for CmdType %s (%#x)", commandName, h.CmdType)
+				return
+			}
+
+			if err := handler(ctx, conn, mgr); err != nil {
+				logger.Get().Warnf("Got error handling CmdType %s (%#x): %s", commandName, h.CmdType, err.Error())
+				return
+			}
 		}
-		return err
-	}
-
-	// Get payload length
-	var h Header
-	if err := h.UnmarshalBinary(headerBuf); err != nil {
-		logger.Get().Error("Invalid Header")
-		return err
-	}
-
-	// Read payload
-	payloadBuf := make([]byte, h.cmdPayloadLenght)
-	_, err = io.ReadFull(c, payloadBuf)
-
-	if err != nil {
-		logger.Get().Error("Read Payload Error: " + err.Error())
-		return err
-	}
-
-	fullPacket := append(headerBuf, payloadBuf...)
-	logger.Get().Info("Received cmd: " + CmdTypeName[h.CmdType])
-
-	switch h.CmdType {
-
-	case CmdMsgReq:
-
-		// TODO: fetch new messages from DB
-
-		// Mock response
-		newMsgs := []MsgPacket{
-			{content: "Pizza"},
-			{content: "Pasta"},
-			{content: "Mandolino"},
-		}
-		resp := NewMsgRespPacket(newMsgs)
-
-		data, err := resp.MarshalBinary()
-		if err != nil {
-			logger.Get().Error("Failed to marshal MsgRespPacket: " + err.Error())
-			return err
-		}
-
-		c.Write(data)
-
-	case CmdMsgResp:
-		var pkt MsgRespPacket
-		if err := pkt.UnmarshalBinary(fullPacket); err != nil {
-			logger.Get().Error("Failed to unmarshal MsgRespPacket: " + err.Error())
-			return err
-		}
-
-		// TODO: update UI with new messages
-
-		logger.Get().Infof("Received %d new messages", len(pkt.msgPackets))
-
-	case CmdSendMsg:
-		var pkt SendMsgPacket
-		if err := pkt.UnmarshalBinary(fullPacket); err != nil {
-			logger.Get().Error("Failed to unmarshal SendMsgPacket: " + err.Error())
-			return err
-		}
-
-		// TODO: save to DB
-		// TODO: forward message to network
-
-		// Send ACK
-		ack := NewSendMsgAckPacket()
-		data, err := ack.MarshalBinary()
-
-		if err != nil {
-			logger.Get().Error("Failed to marshal MsgAckPacket: " + err.Error())
-			return err
-		}
-
-		c.Write(data)
-
-	case CmdSendMsgAck:
-		// TODO: mark message as sent
-		logger.Get().Info("Message sent.")
-
-	default:
-		logger.Get().Warn(fmt.Sprintf("Unknown IPC Command: %d", h.CmdType))
-
-	}
-
-	return nil
+	})
 }

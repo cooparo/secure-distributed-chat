@@ -20,4 +20,6 @@ func main() {
 
 func init() {
 	rootCmd.AddCommand(identityCmd)
+	rootCmd.AddCommand(messageCmd)
+	rootCmd.AddCommand(fetchCmd)
 }

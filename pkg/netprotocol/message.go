@@ -38,7 +38,7 @@ func (msghdr *MessageHeader) AppendBinary(b []byte) ([]byte, error) {
 		}
 	}
 
-	// Encode IdentityAddress
+	// Encode SendIDAddr
 	b = append(b, msghdr.SendIDAddr...)
 
 	// Encode DataLength

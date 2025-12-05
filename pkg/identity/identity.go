@@ -24,6 +24,16 @@ func (a IdentityAddress) Base32() string {
 	return string(dst)
 }
 
+func IdentityFromBase32(s string) (IdentityAddress, error) {
+	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
+	dst := make([]byte, encoding.DecodedLen(len(s)))
+	if _, err := encoding.Decode(dst, []byte(s)); err != nil {
+		return nil, err
+	}
+
+	return IdentityAddress(dst), nil
+}
+
 func (a IdentityAddress) Equal(o IdentityAddress) bool {
 	return bytes.Equal(a, o)
 }

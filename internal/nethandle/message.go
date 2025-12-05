@@ -41,7 +41,6 @@ func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManag
 	if _, err := conn.Read(data); err != nil {
 		return err
 	}
-
 	logger.Get().Debugf("Message data from %s is: %#x", msghdr.SendIDAddr.Base32(), data)
 
 	msg := &netprotocol.Message{

@@ -5,7 +5,6 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 	"crypto/sha3"
-	"encoding/base64"
 	"net"
 
 	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
@@ -71,29 +70,25 @@ func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 		return err
 	}
 
-	encoding := base64.StdEncoding
-
-	sigkeybndlByte, err := sigkeybndl.MarshalBinary()
+	sigkeybndlEncoded, err := sigkeybndl.Encode()
 	if err != nil {
 		return err
 	}
-	sigkeybndlEncoded := make([]byte, encoding.EncodedLen(len(sigkeybndlByte)))
-	encoding.Encode(sigkeybndlEncoded, sigkeybndlByte)
-
-	signetupdByte, err := signetupd.MarshalBinary()
+	signetupdEncoded, err := signetupd.Encode()
 	if err != nil {
 		return err
 	}
-	signetupdEncoded := make([]byte, encoding.EncodedLen(len(signetupdByte)))
-	encoding.Encode(signetupdEncoded, signetupdByte)
 
 	// TODO: Check the timestamp
-	query.AddIdentity(ctx, repository.AddIdentityParams{
+	err = query.AddIdentity(ctx, repository.AddIdentityParams{
 		Address:           kexreq.SendIDAddr.Base32(),
-		KeyBundle:         string(sigkeybndlEncoded),
+		KeyBundle:         sigkeybndlEncoded,
 		NetAddrBundleTime: int64(netupd.Timestamp),
-		NetAddrBundle:     string(signetupdEncoded),
+		NetAddrBundle:     signetupdEncoded,
 	})
+	if err != nil {
+		logger.Get().Warnf("DB: AddIdentity Failed: %s", err.Error())
+	}
 
 	ephemeralPrivateKey, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
@@ -130,7 +125,12 @@ func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 
 	mgr.Set(kexreq.SendIDAddr.Base32(), &sess)
 
-	kexresp := netprotocol.KeyExchangeResponse{
+	mainhdr := &netprotocol.MainHeader{
+		Version:    1,
+		PacketType: netprotocol.PacketTypeKeyExchangeResponse,
+	}
+
+	kexresp := &netprotocol.KeyExchangeResponse{
 		SendIDAddr:   kexreq.RecvIDAddr,
 		RecvIDAddr:   kexreq.SendIDAddr,
 		EphemeralKey: ephemeralPrivateKey.PublicKey(),
@@ -142,11 +142,16 @@ func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 		return err
 	}
 
-	sigkexrespByte, err := sigkexresp.MarshalBinary()
+	pkt, err := mainhdr.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	if _, err := conn.Write(sigkexrespByte); err != nil {
+
+	pkt, err = sigkexresp.AppendBinary(pkt)
+	if err != nil {
+		return err
+	}
+	if _, err := conn.Write(pkt); err != nil {
 		return err
 	}
 

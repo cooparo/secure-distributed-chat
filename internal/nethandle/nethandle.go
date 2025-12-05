@@ -31,6 +31,8 @@ var packetTypeHandler = map[netprotocol.PacketType]packetHandler{
 	netprotocol.PacketTypeMessage:             handleMessage,
 	netprotocol.PacketTypeKeyExchangeRequest:  handleKeyExchangeRequest,
 	netprotocol.PacketTypeKeyExchangeResponse: handleKeyExchangeResponse,
+	netprotocol.PacketTypeDiscoveryRequest:    handleDiscoveryRequest,
+	netprotocol.PacketTypeDiscoveryResponse:   handleDiscoveryResponse,
 }
 
 func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr *session.SessionManager, query *repository.Queries) {

@@ -308,8 +308,7 @@ func (sigkeybndl *SignedKeyBundle) UnmarshalBinary(b []byte) error {
 }
 
 // Verify the signed bundle
-// Returns false if the internal Sizes are wrong
-// and if the signature is invalid
+// Returns an error with the reason it is invalid
 func (sigkeybndl *SignedKeyBundle) Verify() error {
 	if err := sigkeybndl.Signature.CheckSize(); err != nil {
 		return errors.Join(&errs.VerificationError{SubjectName: "SignedKeyBundle"}, err)
@@ -326,6 +325,34 @@ func (sigkeybndl *SignedKeyBundle) Verify() error {
 			SigningKey:  sigkeybndl.Inner.SigningKey,
 			Signature:   sigkeybndl.Signature,
 		}
+	}
+
+	return nil
+}
+
+// Base64 Encode the signed bundle
+func (sigkeybndl *SignedKeyBundle) Encode() (string, error) {
+	sigkeybndlByte, err := sigkeybndl.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+
+	encoding := base64.StdEncoding
+	dst := make([]byte, encoding.EncodedLen(len(sigkeybndlByte)))
+	encoding.Encode(dst, sigkeybndlByte)
+	return string(dst), nil
+}
+
+// Base64 Decode a signed bundle
+func (sigkeybndl *SignedKeyBundle) Decode(s string) error {
+	encoding := base64.StdEncoding
+	dst := make([]byte, encoding.DecodedLen(len(s)))
+	if _, err := encoding.Decode(dst, []byte(s)); err != nil {
+		return err
+	}
+
+	if err := sigkeybndl.UnmarshalBinary(dst); err != nil {
+		return err
 	}
 
 	return nil

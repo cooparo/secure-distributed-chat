@@ -1,6 +1,9 @@
 package main
 
 import (
+	"net"
+
+	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
 	"github.com/spf13/cobra"
 )
 
@@ -8,7 +11,7 @@ var rootCmd = &cobra.Command{
 	Use:   "gratcli",
 	Short: "Grat CLI interface",
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: make it communicate with IPC
+		cmd.Help()
 	},
 }
 
@@ -22,4 +25,9 @@ func init() {
 	rootCmd.AddCommand(identityCmd)
 	rootCmd.AddCommand(messageCmd)
 	rootCmd.AddCommand(fetchCmd)
+}
+
+func connect() (net.Conn, error) {
+	socketPath := ipcprotocol.DefaultSocketPath()
+	return net.Dial("unix", socketPath)
 }

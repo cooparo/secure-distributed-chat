@@ -2,6 +2,7 @@ package ipchandle
 
 import (
 	"context"
+	"encoding/binary"
 	"net"
 
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
@@ -39,27 +40,29 @@ func HandleCmdMsgReq(ctx context.Context, conn net.Conn, sm *session.SessionMana
 }
 
 func HandleCmdMsgResp(ctx context.Context, conn net.Conn, sm *session.SessionManager) error {
-	var pkt ipcprotocol.MsgRespPacket
-
-	// FIX: there is no way to know now, how big the message response will be.
-	// We know the max size of a msg response, that is
-	// IpcMaxMsgSize * max # of messages = 64 KiB ** 2 = 4 GiB
-	// However, since I don't wanna pre-allocate 4 GiB each time I need to handle a MsgResp
-	// for now I'll use 64 KiB, hence IpcMaxMsgSize
-	msgRespBytes := make([]byte, ipcprotocol.IpcMaxMsgSize)
-
-	if _, err := conn.Read(msgRespBytes); err != nil {
+	// Decode the number of messages
+	noMessageBytes := make([]byte, 0, ipcprotocol.IpcHeaderMsgRespPacketSize)
+	if _, err := conn.Read(noMessageBytes); err != nil {
 		return err
 	}
+	noMessage := binary.BigEndian.Uint16(noMessageBytes)
 
-	if err := pkt.UnmarshalBinary(msgRespBytes); err != nil {
-		return err
+	// Decode each message
+	var messages []ipcprotocol.MsgPacket
+	for i := 0; i < int(noMessage); i++ {
+		messageBytes := make([]byte, 0, ipcprotocol.IpcMaxMsgSize+ipcprotocol.IpcMsgPktHeaderSize)
+
+		var msg ipcprotocol.MsgPacket
+		if err := msg.UnmarshalBinary(messageBytes); err != nil {
+			return err
+		}
+
+		messages = append(messages, msg)
 	}
-
-	logger.Get().Infof("Received %d new messages:", len(pkt.MsgPackets))
 
 	// Display messages
-	for _, m := range pkt.MsgPackets {
+	logger.Get().Infof("New %d messages", len(messages))
+	for _, m := range messages {
 		logger.Get().Infof("- New message from %s: \"%s\"", m.Sender.Base32(), m.Message)
 	}
 

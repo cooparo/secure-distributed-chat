@@ -9,20 +9,24 @@ import (
 
 const (
 	IpcNoMsgRespPacketSize     = 2 // Size of "# of Messages" integer in MsgRespPacket
-	IpcHeaderMsgRespPacketSize = IpcHeaderSize + IpcNoMsgRespPacketSize
+	IpcHeaderMsgRespPacketSize = IpcNoMsgRespPacketSize
 )
 
+type MsgRespPacketHeader uint16
+
 type MsgRespPacket struct {
-	Header     Header
-	MsgPackets []MsgPacket
+	Header              Header
+	MsgRespPacketHeader MsgRespPacketHeader
+	MsgPackets          []MsgPacket
 }
 
 func NewMsgRespPacket(messages []MsgPacket) *MsgRespPacket {
-	h := NewHeader(CmdTypeMsgResp)
+	noMessages := len(messages)
 
 	return &MsgRespPacket{
-		Header:     *h,
-		MsgPackets: messages,
+		Header:              *NewHeader(CmdTypeMsgResp),
+		MsgRespPacketHeader: MsgRespPacketHeader(noMessages),
+		MsgPackets:          messages,
 	}
 }
 
@@ -34,8 +38,8 @@ func (mrp *MsgRespPacket) AppendBinary(b []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// Encode # of message
-	n := uint16(len(mrp.MsgPackets))
+	// Encode # of message (MsgRespPacketHeader)
+	n := uint16(mrp.MsgRespPacketHeader)
 	b = binary.BigEndian.AppendUint16(b, n)
 
 	// Encode messages
@@ -59,22 +63,22 @@ func (mrp *MsgRespPacket) MarshalBinary() ([]byte, error) {
 		payloadSize += len(m.Message)
 	}
 
-	return mrp.AppendBinary(make([]byte, 0, payloadSize+IpcHeaderMsgRespPacketSize))
+	return mrp.AppendBinary(make([]byte, 0, payloadSize+IpcHeaderMsgRespPacketSize+IpcHeaderSize))
 }
 
 func (mrp *MsgRespPacket) UnmarshalBinary(b []byte) error {
 	buf := b
 
-	if len(buf) < IpcNoMsgRespPacketSize {
+	if len(buf) < IpcHeaderMsgRespPacketSize {
 		return fmt.Errorf("ipc msg resp packet: buffer too short for header")
 	}
 
 	// Decode # of messages
-	n := binary.BigEndian.Uint16(buf)
+	mrp.MsgRespPacketHeader = MsgRespPacketHeader(binary.BigEndian.Uint16(buf))
 	buf = buf[IpcNoMsgRespPacketSize:]
 
 	var messages []MsgPacket
-	for i := 0; i < int(n); i++ {
+	for i := 0; i < int(mrp.MsgRespPacketHeader); i++ {
 		var msgPacket MsgPacket
 
 		// Decode the message

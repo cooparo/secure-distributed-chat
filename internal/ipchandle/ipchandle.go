@@ -9,35 +9,32 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
 )
 
 const connTimeout = 5 * time.Second
 
-var CommandTypeName = map[ipcprotocol.CmdType]string{
-	ipcprotocol.CmdTypeMsgReq:      "Message Request",
-	ipcprotocol.CmdTypeMsgResp:     "Message Response",
-	ipcprotocol.CmdTypeSendMsg:     "Send Message",
-	ipcprotocol.CmdTypeSendMsgAck:  "Send Message ACK",
-	ipcprotocol.CmdTypeSendMsgNack: "Send Message NACK",
+var packetTypeName = map[ipcprotocol.CommandType]string{
+	ipcprotocol.CommandTypeMessageRequest:  "Message Request",
+	ipcprotocol.CommandTypeMessageResponse: "Message Response",
+	ipcprotocol.CommandTypeSendMessage:     "Send Message",
+	ipcprotocol.CommandTypeSendMessageAck:  "Send Message ACK",
 }
 
-type commandHandler func(context.Context, net.Conn) error
+type ipcpacketHandler func(context.Context, net.Conn, *repository.Queries) error
 
-var CommandTypeHandler = map[ipcprotocol.CmdType]commandHandler{
-	ipcprotocol.CmdTypeMsgReq:      HandleCmdMsgReq,
-	ipcprotocol.CmdTypeMsgResp:     HandleCmdMsgResp,
-	ipcprotocol.CmdTypeSendMsg:     HandleCmdSendMsg,
-	ipcprotocol.CmdTypeSendMsgAck:  HandleCmdSendMsgAck,
-	ipcprotocol.CmdTypeSendMsgNack: HandleCmdSendMsgNack,
+var packetTypeHandler = map[ipcprotocol.CommandType]ipcpacketHandler{
+	ipcprotocol.CommandTypeMessageRequest:  handleMessageRqust,
+	ipcprotocol.CommandTypeMessageResponse: handleMessageRqust,
+	ipcprotocol.CommandTypeSendMessage:     handleMessageRqust,
+	ipcprotocol.CommandTypeSendMessageAck:  handleMessageRqust,
 }
 
 func ServeIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup) {
-	// Close the socket on signal interrupt
 	go func() {
 		<-ctx.Done()
-		os.Remove(ipcprotocol.DefaultSocketPath())
 		ln.Close()
 	}()
 
@@ -53,14 +50,18 @@ func ServeIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup) 
 				logger.Get().Warnf("Accept error: %s", err.Error())
 				continue
 			}
-			handleIpcConn(ctx, conn, wg)
+
+			handleConn(ctx, conn, wg)
 		}
 	}()
+
 }
 
-func handleIpcConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) {
+func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) {
 	wg.Go(func() {
 		defer conn.Close()
+
+		logger.Get().Infof("Got connection from %s", conn.RemoteAddr().String())
 
 		for {
 			select {
@@ -70,51 +71,39 @@ func handleIpcConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) {
 			}
 
 			conn.SetReadDeadline(time.Now().Add(connTimeout))
-			hBytes := make([]byte, ipcprotocol.IpcHeaderSize)
 
-			if _, err := conn.Read(hBytes); err != nil {
-				// Timeout
+			mainhdrByte := make([]byte, ipcprotocol.SizeMainHeader)
+			_, err := conn.Read(mainhdrByte)
+			if err != nil {
+
 				if errors.Is(err, os.ErrDeadlineExceeded) {
-					logger.Get().Warnf("IPC Connection timed out")
+					logger.Get().Warnf("Connection from %s timed out", conn.RemoteAddr().String())
 					return
 				}
 
-				// No data read (normally because the other end closed)
 				if err == io.EOF {
-					logger.Get().Warnf("IPC Connection closed")
+					logger.Get().Warnf("Connection from %s closed", conn.RemoteAddr().String())
 					return
 				}
 
-				// Generic error log
-				logger.Get().Errorf("IPC Connection got error reading: %s", err.Error())
+				logger.Get().Errorf("Got error reading from %s: %s", conn.RemoteAddr().String(), err.Error())
 				return
 			}
 
-			var h ipcprotocol.Header
-			if err := h.UnmarshalBinary(hBytes); err != nil {
-				logger.Get().Errorf("Got an error in the IPC header")
+			logger.Get().Debugf("Nethandle MainHeader raw read: %#x\n", mainhdrByte)
+
+			var mainhdr ipcprotocol.MainHeader
+			if err := mainhdr.UnmarshalBinary(mainhdrByte); err != nil {
+				logger.Get().Errorf("Got an error unmarshaling mainheader: %s", err.Error())
 				return
 			}
 
-			commandName, ok := CommandTypeName[h.CmdType]
+			pktName, ok := packetTypeName[mainhdr.CommandType]
 
 			if !ok {
-				logger.Get().Warnf("Unknown CmdType with id %#x", h.CmdType)
-				return
-			}
-
-			logger.Get().Infof("Got command with version %d and CmdType %s (%#x)", h.Version, commandName, h.CmdType)
-
-			handler, ok := CommandTypeHandler[h.CmdType]
-			if !ok {
-				logger.Get().Warnf("No handler for CmdType %s (%#x)", commandName, h.CmdType)
-				return
-			}
-
-			if err := handler(ctx, conn); err != nil {
-				logger.Get().Warnf("Got error handling CmdType %s (%#x): %s", commandName, h.CmdType, err.Error())
-				return
+				logger.Get().Warnf("No handler for PacketType %s (%#x) \n in other words its not okay", pktName, mainhdr.CommandType)
 			}
 		}
+
 	})
 }

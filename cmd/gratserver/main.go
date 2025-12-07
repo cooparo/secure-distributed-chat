@@ -83,7 +83,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		logger.Get().Infof("Starting server on socket %s", sp)
-		ipchandle.ServeIpcListener(ctx, s, &wg, mgr)
+		ipchandle.ServeIpcListener(ctx, s, &wg)
 
 		// Wait for shutdown
 		<-ctx.Done()

@@ -11,12 +11,11 @@ import (
 
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
-	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
 const connTimeout = 5 * time.Second
 
-var commandTypeName = map[ipcprotocol.CmdType]string{
+var CommandTypeName = map[ipcprotocol.CmdType]string{
 	ipcprotocol.CmdTypeMsgReq:      "Message Request",
 	ipcprotocol.CmdTypeMsgResp:     "Message Response",
 	ipcprotocol.CmdTypeSendMsg:     "Send Message",
@@ -24,9 +23,9 @@ var commandTypeName = map[ipcprotocol.CmdType]string{
 	ipcprotocol.CmdTypeSendMsgNack: "Send Message NACK",
 }
 
-type commandHandler func(context.Context, net.Conn, *session.SessionManager) error
+type commandHandler func(context.Context, net.Conn) error
 
-var commandTypeHandler = map[ipcprotocol.CmdType]commandHandler{
+var CommandTypeHandler = map[ipcprotocol.CmdType]commandHandler{
 	ipcprotocol.CmdTypeMsgReq:      HandleCmdMsgReq,
 	ipcprotocol.CmdTypeMsgResp:     HandleCmdMsgResp,
 	ipcprotocol.CmdTypeSendMsg:     HandleCmdSendMsg,
@@ -34,7 +33,7 @@ var commandTypeHandler = map[ipcprotocol.CmdType]commandHandler{
 	ipcprotocol.CmdTypeSendMsgNack: HandleCmdSendMsgNack,
 }
 
-func ServeIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr *session.SessionManager) {
+func ServeIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup) {
 	// Close the socket on signal interrupt
 	go func() {
 		<-ctx.Done()
@@ -54,12 +53,12 @@ func ServeIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, 
 				logger.Get().Warnf("Accept error: %s", err.Error())
 				continue
 			}
-			handleIpcConn(ctx, conn, wg, mgr)
+			handleIpcConn(ctx, conn, wg)
 		}
 	}()
 }
 
-func handleIpcConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *session.SessionManager) {
+func handleIpcConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) {
 	wg.Go(func() {
 		defer conn.Close()
 
@@ -97,7 +96,7 @@ func handleIpcConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *
 				return
 			}
 
-			commandName, ok := commandTypeName[h.CmdType]
+			commandName, ok := CommandTypeName[h.CmdType]
 
 			if !ok {
 				logger.Get().Warnf("Unknown CmdType with id %#x", h.CmdType)
@@ -106,13 +105,13 @@ func handleIpcConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *
 
 			logger.Get().Infof("Got command with version %d and CmdType %s (%#x)", h.Version, commandName, h.CmdType)
 
-			handler, ok := commandTypeHandler[h.CmdType]
+			handler, ok := CommandTypeHandler[h.CmdType]
 			if !ok {
 				logger.Get().Warnf("No handler for CmdType %s (%#x)", commandName, h.CmdType)
 				return
 			}
 
-			if err := handler(ctx, conn, mgr); err != nil {
+			if err := handler(ctx, conn); err != nil {
 				logger.Get().Warnf("Got error handling CmdType %s (%#x): %s", commandName, h.CmdType, err.Error())
 				return
 			}

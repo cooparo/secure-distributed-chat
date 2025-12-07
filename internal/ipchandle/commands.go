@@ -8,10 +8,9 @@ import (
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
-	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
-func HandleCmdMsgReq(ctx context.Context, conn net.Conn, sm *session.SessionManager) error {
+func HandleCmdMsgReq(ctx context.Context, conn net.Conn) error {
 	// TODO: fetch new messages from DB
 
 	// Mock response
@@ -39,7 +38,7 @@ func HandleCmdMsgReq(ctx context.Context, conn net.Conn, sm *session.SessionMana
 	return nil
 }
 
-func HandleCmdMsgResp(ctx context.Context, conn net.Conn, sm *session.SessionManager) error {
+func HandleCmdMsgResp(ctx context.Context, conn net.Conn) error {
 	// Decode the number of messages
 	noMessageBytes := make([]byte, 0, ipcprotocol.IpcHeaderMsgRespPacketSize)
 	if _, err := conn.Read(noMessageBytes); err != nil {
@@ -69,7 +68,7 @@ func HandleCmdMsgResp(ctx context.Context, conn net.Conn, sm *session.SessionMan
 	return nil
 }
 
-func HandleCmdSendMsg(ctx context.Context, conn net.Conn, sm *session.SessionManager) error {
+func HandleCmdSendMsg(ctx context.Context, conn net.Conn) error {
 	var msg ipcprotocol.MsgPacket
 
 	msgBytes := make([]byte, ipcprotocol.IpcMaxMsgSize)
@@ -89,12 +88,12 @@ func HandleCmdSendMsg(ctx context.Context, conn net.Conn, sm *session.SessionMan
 	return nil
 }
 
-func HandleCmdSendMsgAck(ctx context.Context, conn net.Conn, sm *session.SessionManager) error {
+func HandleCmdSendMsgAck(ctx context.Context, conn net.Conn) error {
 	logger.Get().Info("Message sent successfully")
 	return nil
 }
 
-func HandleCmdSendMsgNack(ctx context.Context, conn net.Conn, sm *session.SessionManager) error {
+func HandleCmdSendMsgNack(ctx context.Context, conn net.Conn) error {
 	logger.Get().Error("Failed to send message")
 	return nil
 }

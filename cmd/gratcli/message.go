@@ -25,11 +25,6 @@ var messageCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if recvAddressStr == "" || messageStr == "" {
-			fmt.Println("Receiver (-r) and message (-m) are required.")
-			os.Exit(1)
-		}
-
 		// Load identity
 		keyFile, err := cmd.Flags().GetString("keyfile")
 		if err != nil {
@@ -103,6 +98,8 @@ var messageCmd = &cobra.Command{
 
 func init() {
 	messageCmd.Flags().StringP("receiver", "r", "", "Address of the receiver")
-	messageCmd.Flags().StringP("keyfile", "k", "./private.key", "Private key file")
+	messageCmd.MarkFlagRequired("receiver")
 	messageCmd.Flags().StringP("message", "m", "", "Send message")
+	messageCmd.MarkFlagRequired("message")
+	messageCmd.Flags().StringP("keyfile", "k", "./private.key", "Private key file")
 }

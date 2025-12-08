@@ -23,16 +23,53 @@ var packetTypeName = map[ipcprotocol.CommandType]string{
 	ipcprotocol.CommandTypeSendMessageAck:  "Send Message ACK",
 }
 
-type ipcpacketHandler func(context.Context, net.Conn, *repository.Queries) error
+type ipcSeverpacketHandler func(context.Context, net.Conn, *repository.Queries) error
 
-var packetTypeHandler = map[ipcprotocol.CommandType]ipcpacketHandler{
-	ipcprotocol.CommandTypeMessageRequest:  handleMessageRqust,
-	ipcprotocol.CommandTypeMessageResponse: handleMessageRqust,
-	ipcprotocol.CommandTypeSendMessage:     handleMessageRqust,
-	ipcprotocol.CommandTypeSendMessageAck:  handleMessageRqust,
+var packetSeverHandler = map[ipcprotocol.CommandType]ipcSeverpacketHandler{
+	ipcprotocol.CommandTypeMessageRequest: handleSeverMessageRequest,
+	ipcprotocol.CommandTypeSendMessage:    handleSeverMessageRequest,
 }
 
-func ServeIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup) {
+type ipcClientPacketHandler func(context.Context, net.Conn) error
+
+var packetClientHandler = map[ipcprotocol.CommandType]ipcClientPacketHandler{
+	ipcprotocol.CommandTypeMessageResponse: handleClientMessageRqust,
+	ipcprotocol.CommandTypeSendMessageAck:  handleClientMessageRqust,
+}
+
+func ServerIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, query *repository.Queries) {
+	go func() {
+		<-ctx.Done()
+		ln.Close()
+	}()
+
+	go func() {
+		for {
+
+			conn, err := ln.Accept()
+			if err != nil {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				logger.Get().Warnf("Accept error: %s", err.Error())
+				continue
+			}
+
+			wg.Add(1)
+			go func(c net.Conn) {
+				defer wg.Done()
+				defer c.Close()
+
+				handleServerConn(ctx, c, query)
+			}(conn)
+		}
+	}()
+}
+
+func ClientIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup) {
 	go func() {
 		<-ctx.Done()
 		ln.Close()
@@ -50,60 +87,137 @@ func ServeIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup) 
 				logger.Get().Warnf("Accept error: %s", err.Error())
 				continue
 			}
-
-			handleConn(ctx, conn, wg)
+			handleConnClient(ctx, conn)
 		}
 	}()
 
 }
 
-func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) {
-	wg.Go(func() {
-		defer conn.Close()
+func handleConnClient(ctx context.Context, conn net.Conn) {
+	defer conn.Close()
 
-		logger.Get().Infof("Got connection from %s", conn.RemoteAddr().String())
+	logger.Get().Infof("Got connection from %s", conn.RemoteAddr().String())
 
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-			conn.SetReadDeadline(time.Now().Add(connTimeout))
-
-			mainhdrByte := make([]byte, ipcprotocol.SizeMainHeader)
-			_, err := conn.Read(mainhdrByte)
-			if err != nil {
-
-				if errors.Is(err, os.ErrDeadlineExceeded) {
-					logger.Get().Warnf("Connection from %s timed out", conn.RemoteAddr().String())
-					return
-				}
-
-				if err == io.EOF {
-					logger.Get().Warnf("Connection from %s closed", conn.RemoteAddr().String())
-					return
-				}
-
-				logger.Get().Errorf("Got error reading from %s: %s", conn.RemoteAddr().String(), err.Error())
-				return
-			}
-
-			logger.Get().Debugf("Nethandle MainHeader raw read: %#x\n", mainhdrByte)
-
-			var mainhdr ipcprotocol.MainHeader
-			if err := mainhdr.UnmarshalBinary(mainhdrByte); err != nil {
-				logger.Get().Errorf("Got an error unmarshaling mainheader: %s", err.Error())
-				return
-			}
-
-			pktName, ok := packetTypeName[mainhdr.CommandType]
-
-			if !ok {
-				logger.Get().Warnf("No handler for PacketType %s (%#x) \n in other words its not okay", pktName, mainhdr.CommandType)
-			}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
 		}
 
-	})
+		conn.SetReadDeadline(time.Now().Add(connTimeout))
+
+		mainhdrByte := make([]byte, ipcprotocol.SizeMainHeader)
+		_, err := conn.Read(mainhdrByte)
+		if err != nil {
+
+			if errors.Is(err, os.ErrDeadlineExceeded) {
+				logger.Get().Warnf("Connection from %s timed out", conn.RemoteAddr().String())
+				return
+			}
+
+			if err == io.EOF {
+				logger.Get().Warnf("Connection from %s closed", conn.RemoteAddr().String())
+				return
+			}
+
+			logger.Get().Errorf("Got error reading from %s: %s", conn.RemoteAddr().String(), err.Error())
+			return
+		}
+
+		logger.Get().Debugf("Nethandle MainHeader raw read: %#x\n", mainhdrByte)
+
+		var mainhdr ipcprotocol.MainHeader
+		if err := mainhdr.UnmarshalBinary(mainhdrByte); err != nil {
+			logger.Get().Errorf("Got an error unmarshaling mainheader: %s", err.Error())
+			return
+		}
+
+		pktName, ok := packetTypeName[mainhdr.CommandType]
+		if !ok {
+			logger.Get().Warnf("No handler for PacketType %s (%#x) \n in other words its not okay", pktName, mainhdr.CommandType)
+			logger.Get().Error(ok)
+			return
+		}
+
+		handler, ok := packetClientHandler[mainhdr.CommandType]
+		if !ok {
+			logger.Get().Warnf("No handler for PacketType %s (%#x)", pktName, mainhdr.CommandType)
+			logger.Get().Error(ok)
+			return
+		}
+
+		err = handler(ctx, conn)
+		if err != nil {
+			logger.Get().Warnf("Got error handling PacketType %s (%#x) error is: %s", pktName, mainhdr.CommandType, err.Error())
+			return
+		}
+
+	}
+
+}
+
+func handleServerConn(ctx context.Context, conn net.Conn, query *repository.Queries) {
+	defer conn.Close()
+
+	logger.Get().Infof("Got connection from %s", conn.RemoteAddr().String())
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		mainhdrByte := make([]byte, ipcprotocol.SizeMainHeader)
+		conn.SetReadDeadline(time.Now().Add(connTimeout))
+
+		_, err := io.ReadFull(conn, mainhdrByte)
+		if err != nil {
+
+			if errors.Is(err, os.ErrDeadlineExceeded) {
+				logger.Get().Warnf("Connection from %s timed out", conn.RemoteAddr().String())
+				return
+			}
+
+			if err == io.EOF {
+				logger.Get().Warnf("Connection from %s closed", conn.RemoteAddr().String())
+				return
+			}
+
+			logger.Get().Errorf("Got error reading from %s: %s", conn.RemoteAddr().String(), err.Error())
+			return
+		}
+
+		logger.Get().Infof("Nethandle MainHeader raw read: %#x\n", mainhdrByte)
+
+		var mainhdr ipcprotocol.MainHeader
+		if err := mainhdr.UnmarshalBinary(mainhdrByte); err != nil {
+			logger.Get().Errorf("Got an error unmarshaling mainheader: %s", err.Error())
+			return
+		}
+
+		pktName, ok := packetTypeName[mainhdr.CommandType]
+		if !ok {
+			logger.Get().Warnf("No handler for PacketType %s (%#x) \n in other words its not okay", pktName, mainhdr.CommandType)
+			logger.Get().Error(ok)
+			return
+		}
+		logger.Get().Info(pktName)
+
+		handler, ok := packetSeverHandler[mainhdr.CommandType]
+		if !ok {
+			logger.Get().Warnf("No handler for PacketType %s (%#x)", pktName, mainhdr.CommandType)
+			logger.Get().Error(ok)
+			return
+		}
+
+		err = handler(ctx, conn, query)
+		if err != nil {
+			logger.Get().Warnf("Got error handling PacketType %s (%#x) error is: %s", pktName, mainhdr.CommandType, err.Error())
+			return
+		}
+
+	}
+
 }

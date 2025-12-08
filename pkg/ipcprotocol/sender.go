@@ -20,7 +20,6 @@ func (msgsendhdr *SendMessageHeader) AppendBinary(b []byte) ([]byte, error) {
 		return nil, err
 	}
 	b = append(b, msgsendhdr.PeerAddres...)
-
 	b = append(b, byte(msgsendhdr.MessageContentLength))
 
 	return b, nil

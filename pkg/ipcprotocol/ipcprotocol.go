@@ -20,7 +20,7 @@ const (
 )
 
 type MainHeader struct {
-	Version Version
+	Version     Version
 	CommandType CommandType
 }
 

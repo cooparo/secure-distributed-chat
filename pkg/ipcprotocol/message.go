@@ -1,6 +1,8 @@
 package ipcprotocol
 
 import (
+	"fmt"
+
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 )
@@ -25,11 +27,54 @@ type NumberOfMesseges uint16
 
 type Timestamp int64
 
+type MessageData []byte
+
 type MessageResponseHeader struct {
 	ReceiverAddress      identity.IdentityAddress
 	SenderAddress        identity.IdentityAddress
 	Timestamp            Timestamp
 	MessageContentLength uint16
+}
+
+type MessageResponsePacket struct {
+	HeaderResponce MessageResponseHeader
+	Data           MessageData
+}
+
+func (msgdata MessageData) AppendBinary(b []byte) ([]byte, error) {
+	return append(b, msgdata...), nil
+}
+
+func (msgdata *MessageData) UnmarshalBinary(b []byte, datalen uint16) error {
+	buf := b
+	*msgdata = make([]byte, datalen)
+	copy(*msgdata, buf)
+	return nil
+}
+
+func (msgrespaket *MessageResponsePacket) MarshalBinary() ([]byte, error) {
+	b, err := msgrespaket.HeaderResponce.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	b, _ = msgrespaket.Data.AppendBinary(b)
+	return b, nil
+}
+
+func (msgrespaket *MessageResponsePacket) UnmarshalBinary(b []byte) error {
+	buf := b
+	if len(buf) < SizeMessageResponseHeader {
+		return fmt.Errorf("buffer too small for header")
+	}
+
+	headerBuf := buf[:SizeMessageResponseHeader]
+	err := msgrespaket.HeaderResponce.UnmarshalBinary(headerBuf)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (msgreshdr *MessageResponseHeader) AppendBinary(b []byte) ([]byte, error) {

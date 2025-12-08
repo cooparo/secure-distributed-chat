@@ -19,7 +19,7 @@ const (
 type Flags uint8
 
 const (
-	FlagHit Flags = 1 << iota
+	FlagDiscHit Flags = 1 << iota
 )
 
 func (f Flags) Set(flag Flags)      { f = f | flag }

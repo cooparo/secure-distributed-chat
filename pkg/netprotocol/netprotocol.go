@@ -54,7 +54,7 @@ func (mainhdr *MainHeader) UnmarshalBinary(b []byte) error {
 	}
 
 	// Decode Version
-	mainhdr.Version = Version(b[0])
+	mainhdr.Version = Version(buf[0])
 
 	buf = buf[SizeVersion:]
 

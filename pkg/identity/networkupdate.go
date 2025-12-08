@@ -2,6 +2,7 @@ package identity
 
 import (
 	"crypto/ed25519"
+	"encoding/base64"
 	"errors"
 	"net"
 
@@ -178,11 +179,11 @@ func (signetupd *SignedNetworkUpdate) UnmarshalBinary(b []byte) error {
 	// Decode Inner
 	netupdByte := make([]byte, SizeNetAddressUpdate)
 	copy(netupdByte, buf[:SizeNetAddressUpdate])
-	var netupd NetworkUpdate
+	netupd := &NetworkUpdate{}
 	if err := netupd.UnmarshalBinary(netupdByte); err != nil {
 		return err
 	}
-	signetupd.Inner = &netupd
+	signetupd.Inner = netupd
 
 	buf = buf[SizeNetAddressUpdate:]
 
@@ -209,6 +210,34 @@ func (signetupd *SignedNetworkUpdate) Verify(publicKey ed25519.PublicKey) error 
 			SigningKey:  publicKey,
 			Signature:   signetupd.Signature,
 		}
+	}
+
+	return nil
+}
+
+// Base64 Encode the signed update
+func (signetupd *SignedNetworkUpdate) Encode() (string, error) {
+	signetupdByte, err := signetupd.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+
+	encoding := base64.StdEncoding
+	dst := make([]byte, encoding.EncodedLen(len(signetupdByte)))
+	encoding.Encode(dst, signetupdByte)
+	return string(dst), nil
+}
+
+// Base64 Decode the signed update
+func (signetupd *SignedNetworkUpdate) Decode(s string) error {
+	encoding := base64.StdEncoding
+	dst := make([]byte, encoding.DecodedLen(len(s)))
+	if _, err := encoding.Decode(dst, []byte(s)); err != nil {
+		return err
+	}
+
+	if err := signetupd.UnmarshalBinary(dst); err != nil {
+		return err
 	}
 
 	return nil

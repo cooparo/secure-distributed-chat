@@ -31,6 +31,8 @@ var packetTypeHandler = map[netprotocol.PacketType]packetHandler{
 	netprotocol.PacketTypeMessage:             handleMessage,
 	netprotocol.PacketTypeKeyExchangeRequest:  handleKeyExchangeRequest,
 	netprotocol.PacketTypeKeyExchangeResponse: handleKeyExchangeResponse,
+	netprotocol.PacketTypeDiscoveryRequest:    handleDiscoveryRequest,
+	netprotocol.PacketTypeDiscoveryResponse:   handleDiscoveryResponse,
 }
 
 func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr *session.SessionManager, query *repository.Queries) {
@@ -90,7 +92,7 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *ses
 			}
 			logger.Get().Debugf("Nethandle MainHeader raw read: %#x\n", mainhdrByte)
 
-			var mainhdr netprotocol.MainHeader
+			mainhdr := &netprotocol.MainHeader{}
 			if err := mainhdr.UnmarshalBinary(mainhdrByte); err != nil {
 				logger.Get().Errorf("Got an error unmarshaling mainheader: %s", err.Error())
 				return

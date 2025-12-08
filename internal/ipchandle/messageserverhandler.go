@@ -11,7 +11,7 @@ import (
 )
 
 // MessageRequestHeader
-func handleSeverMessageRequest(ctx context.Context, conn net.Conn, query *repository.Queries) error {
+func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repository.Queries) error {
 	logger.Get().Info("WE ARE IN")
 
 	msgreqhdrByte := make([]byte, ipcprotocol.SizeMessageRequestHeader)
@@ -31,14 +31,14 @@ func handleSeverMessageRequest(ctx context.Context, conn net.Conn, query *reposi
 		return err
 	}
 
-	// TODO: if len = 0 then retun somting emty array
+	// TODO: if len = 0 then return something empty array
 
 	mainHeader := ipcprotocol.MainHeader{
 		Version:     ipcprotocol.Version(1),
 		CommandType: ipcprotocol.CommandTypeMessageResponse,
 	}
 
-	coutOfMsg := ipcprotocol.NumberOfMesseges(len(msgRows))
+	countOfMsg := ipcprotocol.NumberOfMesseges(len(msgRows))
 
 	buf := make([]byte, 0, ipcprotocol.SizeMainHeader+
 		ipcprotocol.SizeNumberOfMessages)
@@ -49,7 +49,7 @@ func handleSeverMessageRequest(ctx context.Context, conn net.Conn, query *reposi
 	}
 
 	buf = append(buf, mainBytes...)
-	countByts, err := coutOfMsg.MarshalBinary()
+	countByts, err := countOfMsg.MarshalBinary()
 	if err != nil {
 		return err
 	}

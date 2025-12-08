@@ -23,11 +23,11 @@ var packetTypeName = map[ipcprotocol.CommandType]string{
 	ipcprotocol.CommandTypeSendMessageAck:  "Send Message ACK",
 }
 
-type ipcSeverpacketHandler func(context.Context, net.Conn, *repository.Queries) error
+type ipcServerpacketHandler func(context.Context, net.Conn, *repository.Queries) error
 
-var packetSeverHandler = map[ipcprotocol.CommandType]ipcSeverpacketHandler{
-	ipcprotocol.CommandTypeMessageRequest: handleSeverMessageRequest,
-	ipcprotocol.CommandTypeSendMessage:    handleSeverMessageRequest,
+var packetServerHandler = map[ipcprotocol.CommandType]ipcServerpacketHandler{
+	ipcprotocol.CommandTypeMessageRequest: handleServerMessageRequest,
+	ipcprotocol.CommandTypeSendMessage:    handleServerMessageRequest,
 }
 
 type ipcClientPacketHandler func(context.Context, net.Conn) error
@@ -205,7 +205,7 @@ func handleServerConn(ctx context.Context, conn net.Conn, query *repository.Quer
 		}
 		logger.Get().Info(pktName)
 
-		handler, ok := packetSeverHandler[mainhdr.CommandType]
+		handler, ok := packetServerHandler[mainhdr.CommandType]
 		if !ok {
 			logger.Get().Warnf("No handler for PacketType %s (%#x)", pktName, mainhdr.CommandType)
 			logger.Get().Error(ok)

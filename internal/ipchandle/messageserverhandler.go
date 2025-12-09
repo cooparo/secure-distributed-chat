@@ -2,6 +2,7 @@ package ipchandle
 
 import (
 	"context"
+	"io"
 	"net"
 
 	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
@@ -15,8 +16,9 @@ import (
 // MessageRequestHeader
 
 func handleServerSendMessage(ctx context.Context, conn net.Conn, query *repository.Queries) error {
+
 	sendhdrByte := make([]byte, ipcprotocol.SizeSendMessageHeader)
-	if _, err := conn.Read(sendhdrByte); err != nil {
+	if _, err := io.ReadFull(conn, sendhdrByte); err != nil {
 		return err
 	}
 
@@ -25,14 +27,22 @@ func handleServerSendMessage(ctx context.Context, conn net.Conn, query *reposito
 		return err
 	}
 
-	logger.Get().Infof("Sending to: %s: Message length is %d", sendmsghdr.PeerAddress.Base32(), sendmsghdr.MessageLength)
+	logger.Get().Infof("Sending to: %s; Message length=%d",
+		sendmsghdr.PeerAddress.Base32(),
+		sendmsghdr.MessageLength)
 
+	msgpktdataByte := make([]byte, sendmsghdr.MessageLength)
+	if _, err := io.ReadFull(conn, msgpktdataByte); err != nil {
+		return err
+	}
+
+	logger.Get().Infof("Message:\n%s", string(msgpktdataByte))
 	return nil
 }
 
 func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repository.Queries) error {
 	msgreqhdrByte := make([]byte, ipcprotocol.SizeMessageRequestHeader)
-	if _, err := conn.Read(msgreqhdrByte); err != nil {
+	if _, err := io.ReadFull(conn, msgreqhdrByte); err != nil {
 		return err
 	}
 

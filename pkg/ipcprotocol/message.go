@@ -21,8 +21,6 @@ type MessageRequestHeader struct {
 	Address identity.IdentityAddress
 }
 
-type MessageData []byte
-
 type MessageResponseHeader struct {
 	SenderAddress   identity.IdentityAddress
 	ReceiverAddress identity.IdentityAddress
@@ -43,11 +41,10 @@ func (msgreshdr *MessageResponseHeader) AppendBinary(b []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// Encode SenderAddress
-	b = append(b, msgreshdr.SenderAddress...)
-
 	// Encode ReceiverAddress
 	b = append(b, msgreshdr.ReceiverAddress...)
+	// Encode SenderAddress
+	b = append(b, msgreshdr.SenderAddress...)
 
 	// Encode Timestamp
 	var err error

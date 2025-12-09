@@ -2,6 +2,7 @@ package ipchandle
 
 import (
 	"context"
+	"io"
 	"net"
 
 	"github.com/cooparo/secure-distributed-chat/pkg/common"
@@ -9,8 +10,9 @@ import (
 )
 
 func handleClientMessageRequest(ctx context.Context, conn net.Conn) error {
+	_ = ctx
 	numofmsgshdrBytes := make([]byte, ipcprotocol.SizeNumberOfMessages)
-	if _, err := conn.Read(numofmsgshdrBytes); err != nil {
+	if _, err := io.ReadFull(conn, numofmsgshdrBytes); err != nil {
 		return err
 	}
 
@@ -18,9 +20,9 @@ func handleClientMessageRequest(ctx context.Context, conn net.Conn) error {
 	numofmsgs = common.Uint16UnmarshalBinary(numofmsgshdrBytes)
 
 	var responMsgs []ipcprotocol.MessageResponsePacket
-	for range numofmsgs {
+	for i := uint16(0); i < uint16(numofmsgs); i++ {
 		currntReshdrBytes := make([]byte, ipcprotocol.SizeMessageResponseHeader)
-		if _, err := conn.Read(currntReshdrBytes); err != nil {
+		if _, err := io.ReadFull(conn, currntReshdrBytes); err != nil {
 			return err
 		}
 

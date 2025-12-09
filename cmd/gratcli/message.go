@@ -39,12 +39,6 @@ var messageCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		myAddress, err := privKeyBundle.Public().Address()
-		if err != nil {
-			fmt.Printf("Error calculating address: %s\n", err.Error())
-			os.Exit(1)
-		}
-
 		recvAddress, err := identity.IdentityFromBase32(recvAddressStr)
 		if err != nil {
 			fmt.Printf("Error decoding base32 receiver address: %s\n", err.Error())
@@ -57,26 +51,48 @@ var messageCmd = &cobra.Command{
 		}
 		defer conn.Close()
 
+		var buf []byte
 		// Send packet
 		mainhdr := &ipcprotocol.MainHeader{
 			Version:     1,
 			CommandType: ipcprotocol.CommandTypeSendMessage,
 		}
-		pkt, err := mainhdr.MarshalBinary()
+		hdrpkt, err := mainhdr.MarshalBinary()
 		if err != nil {
 			logger.Get().Fatalf("Got error marshaling mainheader: %s", err.Error())
 		}
 
-		// FIX: Still missing MessageResponse struct
+		buf = append(buf, hdrpkt...)
 
-		data, err := sendPacket.MarshalBinary()
+		// FIX: Still missing MessageResponse struct
+		sendPacket := &ipcprotocol.SendMessageHeader{
+			PeerAddress:   recvAddress,
+			MessageLength: uint16(len(messageStr)),
+		}
+
+		sendhdrpkt, err := sendPacket.MarshalBinary()
 		if err != nil {
 			fmt.Printf("Error marshaling packet: %s\n", err.Error())
 			os.Exit(1)
 		}
 
+		buf = append(buf, sendhdrpkt...)
+
+		msg := ipcprotocol.MessageData([]byte(messageStr))
+		msgdata := &msg
+
+		pktdata, err := msgdata.MarshalBinary(sendPacket.MessageLength)
+		if err != nil {
+			fmt.Printf("Error marshaling packet: %s\n", err.Error())
+			os.Exit(1)
+		}
+
+		buf = append(buf, pktdata...)
+
+		fmt.Print("buf", buf)
+
 		// Write to socket
-		if _, err := conn.Write(data); err != nil {
+		if _, err := conn.Write(buf); err != nil {
 			fmt.Printf("Error sending packet: %s\n", err.Error())
 			os.Exit(1)
 		}
@@ -84,25 +100,25 @@ var messageCmd = &cobra.Command{
 		// TODO: syncable maybe (with server response)?
 
 		// Read Response (ACK/NACK)
-		headerBytes := make([]byte, ipcprotocol.IpcHeaderSize)
+		headerBytes := make([]byte, ipcprotocol.SizeMainHeader)
 		if _, err := conn.Read(headerBytes); err != nil {
 			fmt.Printf("Error reading response: %s\n", err.Error())
 			os.Exit(1)
 		}
 
-		var header ipcprotocol.Header
+		var header ipcprotocol.MainHeader
 		if err := header.UnmarshalBinary(headerBytes); err != nil {
 			fmt.Printf("Error decoding header: %s\n", err.Error())
 			os.Exit(1)
 		}
 
-		switch header.CmdType {
-		case ipcprotocol.CmdTypeSendMsgAck:
+		switch header.CommandType {
+		case ipcprotocol.CommandTypeSendMessageAck:
 			fmt.Println("Message sent successfully")
-		case ipcprotocol.CmdTypeSendMsgNack:
+		case ipcprotocol.CommandTypeSendMessageNac:
 			fmt.Println("Failed to send message")
 		default:
-			fmt.Printf("Unexpected response type: %#x\n", header.CmdType)
+			fmt.Printf("Unexpected response type: %#x\n", header.CommandType)
 		}
 	},
 }

@@ -156,7 +156,7 @@ func handleServerConn(ctx context.Context, conn net.Conn, query *repository.Quer
 		mainhdrByte := make([]byte, ipcprotocol.SizeMainHeader)
 		conn.SetReadDeadline(time.Now().Add(connTimeout))
 
-		_, err := conn.Read(mainhdrByte)
+		_, err := io.ReadFull(conn, mainhdrByte)
 		if err != nil {
 
 			if errors.Is(err, os.ErrDeadlineExceeded) {
@@ -173,7 +173,7 @@ func handleServerConn(ctx context.Context, conn net.Conn, query *repository.Quer
 			return
 		}
 
-		logger.Get().Infof("Nethandle MainHeader raw read: %#x\n", mainhdrByte)
+		logger.Get().Infof("Nethandle MainHeader raw read: %d\n", mainhdrByte)
 
 		var mainhdr ipcprotocol.MainHeader
 		if err := mainhdr.UnmarshalBinary(mainhdrByte); err != nil {

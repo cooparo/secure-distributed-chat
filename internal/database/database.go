@@ -37,7 +37,6 @@ func Connect(ctx context.Context, dbURI string) (*repository.Queries, error) {
 	if err != nil {
 		return nil, err
 	}
-	migrator.Up()
 	if err := migrator.Up(); err != nil {
 		if !errors.Is(err, migrate.ErrNoChange) {
 			return nil, err

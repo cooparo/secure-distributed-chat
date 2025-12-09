@@ -3,6 +3,7 @@ package netprotocol
 import (
 	"fmt"
 
+	"github.com/cooparo/secure-distributed-chat/pkg/common/flags"
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 )
@@ -16,16 +17,9 @@ const (
 	SizeDiscoveryResponseHeader = identity.SizeIdentityAddress + SizeFlags + SizeIdentityCount
 )
 
-type Flags uint8
-
 const (
-	FlagDiscHit Flags = 1 << iota
+	FlagDiscHit flags.Flags = 1 << iota
 )
-
-func (f Flags) Set(flag Flags)      { f = f | flag }
-func (f Flags) Clear(flag Flags)    { f = f &^ flag }
-func (f Flags) Toggle(flag Flags)   { f = f ^ flag }
-func (f Flags) Has(flag Flags) bool { return f&flag != 0 }
 
 type FullIdentity struct {
 	Address             identity.IdentityAddress
@@ -328,7 +322,7 @@ func (discreq *DiscoveryRequest) UnmarshalBinary(b []byte) error {
 
 type DiscoveryResponseHeader struct {
 	SendIDAddr    identity.IdentityAddress
-	Flags         Flags
+	Flags         flags.Flags
 	IdentityCount uint8
 }
 
@@ -376,12 +370,12 @@ func (discresphdr *DiscoveryResponseHeader) UnmarshalBinary(b []byte) error {
 	buf = buf[identity.SizeIdentityAddress:]
 
 	// Decode Flags
-	discresphdr.Flags = Flags(b[0])
+	discresphdr.Flags = flags.Flags(buf[0])
 
 	buf = buf[SizeFlags:]
 
 	// Decode IdentityCount
-	discresphdr.IdentityCount = uint8(b[0])
+	discresphdr.IdentityCount = uint8(buf[0])
 
 	return nil
 }

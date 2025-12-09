@@ -38,7 +38,9 @@ var packetTypeHandler = map[netprotocol.PacketType]packetHandler{
 func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr *session.SessionManager, query *repository.Queries) {
 	go func() {
 		<-ctx.Done()
-		ln.Close()
+		if err := ln.Close(); err != nil {
+			panic(err)
+		}
 	}()
 
 	go func() {
@@ -60,7 +62,11 @@ func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr
 
 func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *session.SessionManager, query *repository.Queries) {
 	wg.Go(func() {
-		defer conn.Close()
+		defer func() {
+			if err := conn.Close(); err != nil {
+				panic(err)
+			}
+		}()
 
 		logger.Get().Infof("Got connection from %s", conn.RemoteAddr().String())
 
@@ -70,7 +76,10 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *ses
 				return
 			default:
 			}
-			conn.SetReadDeadline(time.Now().Add(connTimeout))
+			if err := conn.SetReadDeadline(time.Now().Add(connTimeout)); err != nil {
+				logger.Get().Error("Failed to set ReadDeadline")
+				return
+			}
 			mainhdrByte := make([]byte, netprotocol.SizeMainHeader)
 			_, err := conn.Read(mainhdrByte)
 			if err != nil {

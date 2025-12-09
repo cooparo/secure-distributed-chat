@@ -8,6 +8,7 @@ import (
 
 	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
+	"github.com/cooparo/secure-distributed-chat/pkg/common/flags"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
@@ -149,14 +150,14 @@ func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.Ses
 		discreq.AdditionalIdentities = append(discreq.AdditionalIdentities, fullid)
 	}
 
-	var responseFlags netprotocol.Flags
-	responseFlags.Set(netprotocol.FlagDiscHit)
+	var responseFlags flags.Flags
+	responseFlags = flags.Set(responseFlags, netprotocol.FlagDiscHit)
 
 	lookupIdRow, err := query.GetIdentity(ctx, discreqhdr.LookupIDAddr.Base32())
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			logger.Get().Warnf("Identity Address %s not found in our database", discreqhdr.LookupIDAddr.Base32())
-			responseFlags.Clear(netprotocol.FlagDiscHit)
+			responseFlags = flags.Clear(responseFlags, netprotocol.FlagDiscHit)
 		} else {
 			return err
 		}
@@ -167,7 +168,7 @@ func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.Ses
 	// Will need more queries to get the count
 	// This should work fine for now
 	extraIdCount := discreqhdr.MaxIdentityCount
-	if responseFlags.Has(netprotocol.FlagDiscHit) {
+	if flags.Has(responseFlags, netprotocol.FlagDiscHit) {
 		extraIdCount = extraIdCount - 1
 	}
 
@@ -192,7 +193,7 @@ func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.Ses
 		Identities: make([]*netprotocol.FullIdentity, 0, discreqhdr.MaxIdentityCount),
 	}
 
-	if responseFlags.Has(netprotocol.FlagDiscHit) {
+	if flags.Has(responseFlags, netprotocol.FlagDiscHit) {
 		lookupIdSigkeybndl := &identity.SignedKeyBundle{}
 		if err := lookupIdSigkeybndl.Decode(lookupIdRow.KeyBundle); err != nil {
 			return err
@@ -339,7 +340,8 @@ func handleDiscoveryResponse(ctx context.Context, conn net.Conn, mgr *session.Se
 		discresp.Identities = append(discresp.Identities, fullid)
 	}
 
-	if discresphdr.Flags.Has(netprotocol.FlagDiscHit) {
+	if flags.Has(discresphdr.Flags, netprotocol.FlagDiscHit) {
+		logger.Get().Info("The Hit flag is set")
 		// TODO: First identity is the one we were looking for
 		// Check that it is correct and somehow mark that
 	}

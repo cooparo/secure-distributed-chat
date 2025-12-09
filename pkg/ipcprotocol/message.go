@@ -1,8 +1,6 @@
 package ipcprotocol
 
 import (
-	"fmt"
-
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 )
@@ -52,29 +50,10 @@ func (msgdata *MessageData) UnmarshalBinary(b []byte, datalen uint16) error {
 	return nil
 }
 
-func (msgrespaket *MessageResponsePacket) MarshalBinary() ([]byte, error) {
-	b, err := msgrespaket.HeaderResponce.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	b, _ = msgrespaket.Data.AppendBinary(b)
+func (msgdata MessageData) MarshalBinary() ([]byte, error) {
+	b := make([]byte, len(msgdata))
+	copy(b, msgdata)
 	return b, nil
-}
-
-func (msgrespaket *MessageResponsePacket) UnmarshalBinary(b []byte) error {
-	buf := b
-	if len(buf) < SizeMessageResponseHeader {
-		return fmt.Errorf("buffer too small for header")
-	}
-
-	headerBuf := buf[:SizeMessageResponseHeader]
-	err := msgrespaket.HeaderResponce.UnmarshalBinary(headerBuf)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (msgreshdr *MessageResponseHeader) AppendBinary(b []byte) ([]byte, error) {
@@ -86,7 +65,6 @@ func (msgreshdr *MessageResponseHeader) AppendBinary(b []byte) ([]byte, error) {
 	}
 
 	b = append(b, msgreshdr.SenderAddress...)
-
 	b = append(b, msgreshdr.ReceiverAddress...)
 
 	var err error

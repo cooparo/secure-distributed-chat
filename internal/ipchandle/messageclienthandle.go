@@ -4,45 +4,45 @@ import (
 	"context"
 	"net"
 
-	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
 )
 
-func handleClientMessageRqust(ctx context.Context, conn net.Conn) error {
-	numofmsgBytes := make([]byte, ipcprotocol.SizeNumberOfMessages)
-	if _, err := conn.Read(numofmsgBytes); err != nil {
+func handleClientMessageRequest(ctx context.Context, conn net.Conn) error {
+	numofmsgshdrBytes := make([]byte, ipcprotocol.SizeNumberOfMessages)
+	if _, err := conn.Read(numofmsgshdrBytes); err != nil {
 		return err
 	}
 
-	var numofmsg ipcprotocol.NumberOfMesseges
-	if err := numofmsg.UnmarshalBinary(numofmsgBytes); err != nil {
+	var numofmsgs ipcprotocol.NumberOfMesseges
+	if err := numofmsgs.UnmarshalBinary(numofmsgshdrBytes); err != nil {
 		return err
 	}
 
-	var packets []ipcprotocol.MessageResponsePacket
-	for range numofmsg {
-		bufReadBytes := make([]byte, ipcprotocol.SizeMessageResponseHeader)
-		if _, err := conn.Read(bufReadBytes); err != nil {
+	var responMsgs []ipcprotocol.MessageResponsePacket
+	for range numofmsgs {
+		currntReshdrBytes := make([]byte, ipcprotocol.SizeMessageResponseHeader)
+		if _, err := conn.Read(currntReshdrBytes); err != nil {
 			return err
 		}
 
-		var msgreshdr ipcprotocol.MessageResponseHeader
-		if err := msgreshdr.UnmarshalBinary(bufReadBytes); err != nil {
+		var currntReshdr ipcprotocol.MessageResponseHeader
+		if err := currntReshdr.UnmarshalBinary(currntReshdrBytes); err != nil {
 			return err
 		}
 
-		bufReadBytes = make([]byte, msgreshdr.MessageContentLength)
-		if _, err := conn.Read(bufReadBytes); err != nil {
+		dataBytes := make([]byte, currntReshdr.MessageContentLength)
+		if _, err := conn.Read(dataBytes); err != nil {
 			return err
 		}
 
-		packets = append(packets, ipcprotocol.MessageResponsePacket{
-			HeaderResponce: msgreshdr,
-			Data:           ipcprotocol.MessageData(bufReadBytes),
-		})
+		currntpkt := ipcprotocol.MessageResponsePacket{
+			HeaderResponce: currntReshdr,
+			Data:           ipcprotocol.MessageData(dataBytes),
+		}
 
-		logger.Get().Info("the packets is ", packets)
+		responMsgs = append(responMsgs, currntpkt)
 	}
 
 	return nil
+
 }

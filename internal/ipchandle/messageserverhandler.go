@@ -10,16 +10,30 @@ import (
 	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
 )
 
+// handleServerSendMessage
 // MessageRequestHeader
-func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repository.Queries) error {
-	logger.Get().Info("WE ARE IN")
 
+func handleServerSendMessage(ctx context.Context, conn net.Conn, query *repository.Queries) error {
+	sendhdrByte := make([]byte, ipcprotocol.SizeSendMessageHeader)
+	if _, err := conn.Read(sendhdrByte); err != nil {
+		return err
+	}
+
+	var sendmsghdr ipcprotocol.SendMessageHeader
+	if err := sendmsghdr.UnmarshalBinary(sendhdrByte); err != nil {
+		return err
+	}
+
+	logger.Get().Infof("Sending to: %s: Message length is %d", sendmsghdr.PeerAddres.Base32(), sendmsghdr.MessageContentLength)
+
+	return nil
+}
+
+func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repository.Queries) error {
 	msgreqhdrByte := make([]byte, ipcprotocol.SizeMessageRequestHeader)
 	if _, err := conn.Read(msgreqhdrByte); err != nil {
 		return err
 	}
-
-	logger.Get().Info("are herer")
 
 	var msgreqhdr ipcprotocol.MessageRequestHeader
 	if err := msgreqhdr.UnmarshalBinary(msgreqhdrByte); err != nil {
@@ -31,6 +45,8 @@ func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repos
 		return err
 	}
 
+	logger.Get().Info(msgRows)
+
 	// TODO: if len = 0 then return something empty array
 
 	mainHeader := ipcprotocol.MainHeader{
@@ -40,15 +56,14 @@ func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repos
 
 	countOfMsg := ipcprotocol.NumberOfMesseges(len(msgRows))
 
-	buf := make([]byte, 0, ipcprotocol.SizeMainHeader+
-		ipcprotocol.SizeNumberOfMessages)
+	var buf []byte
 
 	mainBytes, err := mainHeader.MarshalBinary()
 	if err != nil {
 		return err
 	}
-
 	buf = append(buf, mainBytes...)
+
 	countByts, err := countOfMsg.MarshalBinary()
 	if err != nil {
 		return err
@@ -56,29 +71,33 @@ func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repos
 	buf = append(buf, countByts...)
 
 	for _, msgItem := range msgRows {
-		pkt := ipcprotocol.MessageResponsePacket{
-			HeaderResponce: ipcprotocol.MessageResponseHeader{
-				ReceiverAddress:      identity.IdentityAddress(msgItem.ReceiverAddress),
-				SenderAddress:        identity.IdentityAddress(msgItem.SenderAddress),
-				Timestamp:            ipcprotocol.Timestamp(msgItem.Time),
-				MessageContentLength: uint16(len(msgItem.Contents)),
-			},
-			Data: ipcprotocol.MessageData(msgItem.Contents),
+		reshdr := ipcprotocol.MessageResponseHeader{
+			// somtong liek this if we want to decode from sting to
+			ReceiverAddress:      identity.IdentityAddress(msgItem.ReceiverAddress).ByAnyDecodeFromBase32(),
+			SenderAddress:        identity.IdentityAddress(msgItem.SenderAddress).ByAnyDecodeFromBase32(),
+			Timestamp:            ipcprotocol.Timestamp(msgItem.Time),
+			MessageContentLength: uint16(len(msgItem.Contents)),
 		}
 
-		pktBytes, err := pkt.MarshalBinary()
+		reshdrBytes, err := reshdr.MarshalBinary()
 		if err != nil {
 			return err
 		}
+		buf = append(buf, reshdrBytes...)
 
-		logger.Get().Info(pkt)
+		logger.Get().Info(buf)
 
-		buf = append(buf, pktBytes...)
+		data := ipcprotocol.MessageData(msgItem.Contents)
+		dataBytes, err := data.MarshalBinary()
+		if err != nil {
+			return err
+		}
+		buf = append(buf, dataBytes...)
 	}
 
 	_, err = conn.Write(buf)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	return nil

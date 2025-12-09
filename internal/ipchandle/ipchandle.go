@@ -27,14 +27,14 @@ type ipcServerpacketHandler func(context.Context, net.Conn, *repository.Queries)
 
 var packetServerHandler = map[ipcprotocol.CommandType]ipcServerpacketHandler{
 	ipcprotocol.CommandTypeMessageRequest: handleServerMessageRequest,
-	ipcprotocol.CommandTypeSendMessage:    handleServerMessageRequest,
+	ipcprotocol.CommandTypeSendMessage:    handleServerSendMessage,
 }
 
 type ipcClientPacketHandler func(context.Context, net.Conn) error
 
 var packetClientHandler = map[ipcprotocol.CommandType]ipcClientPacketHandler{
-	ipcprotocol.CommandTypeMessageResponse: handleClientMessageRqust,
-	ipcprotocol.CommandTypeSendMessageAck:  handleClientMessageRqust,
+	ipcprotocol.CommandTypeMessageResponse: handleClientMessageRequest,
+	//ipcprotocol.CommandTypeSendMessageAck:  handleClientMessageRqust,
 }
 
 func ServerIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, query *repository.Queries) {
@@ -45,7 +45,6 @@ func ServerIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup,
 
 	go func() {
 		for {
-
 			conn, err := ln.Accept()
 			if err != nil {
 				select {
@@ -69,28 +68,15 @@ func ServerIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup,
 	}()
 }
 
-func ClientIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup) {
+func clientIpcListener(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) {
+	defer wg.Done()
 	go func() {
 		<-ctx.Done()
-		ln.Close()
+		conn.Close()
+
 	}()
 
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-				logger.Get().Warnf("Accept error: %s", err.Error())
-				continue
-			}
-			handleConnClient(ctx, conn)
-		}
-	}()
-
+	handleConnClient(ctx, conn)
 }
 
 func handleConnClient(ctx context.Context, conn net.Conn) {
@@ -105,10 +91,8 @@ func handleConnClient(ctx context.Context, conn net.Conn) {
 		default:
 		}
 
-		conn.SetReadDeadline(time.Now().Add(connTimeout))
-
 		mainhdrByte := make([]byte, ipcprotocol.SizeMainHeader)
-		_, err := conn.Read(mainhdrByte)
+		_, err := io.ReadFull(conn, mainhdrByte)
 		if err != nil {
 
 			if errors.Is(err, os.ErrDeadlineExceeded) {
@@ -125,13 +109,14 @@ func handleConnClient(ctx context.Context, conn net.Conn) {
 			return
 		}
 
-		logger.Get().Debugf("Nethandle MainHeader raw read: %#x\n", mainhdrByte)
-
 		var mainhdr ipcprotocol.MainHeader
 		if err := mainhdr.UnmarshalBinary(mainhdrByte); err != nil {
 			logger.Get().Errorf("Got an error unmarshaling mainheader: %s", err.Error())
 			return
 		}
+
+		logger.Get().Infof("Dette er main header raw bytes: %v", mainhdrByte)
+		logger.Get().Infof("Decoded version=%d commandtype=%d", mainhdr.Version, mainhdr.CommandType)
 
 		pktName, ok := packetTypeName[mainhdr.CommandType]
 		if !ok {
@@ -143,7 +128,6 @@ func handleConnClient(ctx context.Context, conn net.Conn) {
 		handler, ok := packetClientHandler[mainhdr.CommandType]
 		if !ok {
 			logger.Get().Warnf("No handler for PacketType %s (%#x)", pktName, mainhdr.CommandType)
-			logger.Get().Error(ok)
 			return
 		}
 
@@ -172,7 +156,7 @@ func handleServerConn(ctx context.Context, conn net.Conn, query *repository.Quer
 		mainhdrByte := make([]byte, ipcprotocol.SizeMainHeader)
 		conn.SetReadDeadline(time.Now().Add(connTimeout))
 
-		_, err := io.ReadFull(conn, mainhdrByte)
+		_, err := conn.Read(mainhdrByte)
 		if err != nil {
 
 			if errors.Is(err, os.ErrDeadlineExceeded) {
@@ -200,7 +184,6 @@ func handleServerConn(ctx context.Context, conn net.Conn, query *repository.Quer
 		pktName, ok := packetTypeName[mainhdr.CommandType]
 		if !ok {
 			logger.Get().Warnf("No handler for PacketType %s (%#x) \n in other words its not okay", pktName, mainhdr.CommandType)
-			logger.Get().Error(ok)
 			return
 		}
 		logger.Get().Info(pktName)
@@ -208,7 +191,6 @@ func handleServerConn(ctx context.Context, conn net.Conn, query *repository.Quer
 		handler, ok := packetServerHandler[mainhdr.CommandType]
 		if !ok {
 			logger.Get().Warnf("No handler for PacketType %s (%#x)", pktName, mainhdr.CommandType)
-			logger.Get().Error(ok)
 			return
 		}
 

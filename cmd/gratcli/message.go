@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
 	"github.com/spf13/cobra"
@@ -44,8 +45,10 @@ var messageCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		recvAddress := identity.IdentityAddress([]byte(recvAddressStr))
-		message := ipcprotocol.Message(messageStr)
+		recvAddress, err := identity.IdentityFromBase32(recvAddressStr)
+		if err != nil {
+			fmt.Printf("Error decoding base32 receiver address: %s\n", err.Error())
+		}
 
 		conn, err := connect()
 		if err != nil {
@@ -55,8 +58,16 @@ var messageCmd = &cobra.Command{
 		defer conn.Close()
 
 		// Send packet
-		msgPacket := ipcprotocol.NewMsgPacket(myAddress, recvAddress, message)
-		sendPacket := ipcprotocol.NewSendMsgPacket(*msgPacket)
+		mainhdr := &ipcprotocol.MainHeader{
+			Version:     1,
+			CommandType: ipcprotocol.CommandTypeSendMessage,
+		}
+		pkt, err := mainhdr.MarshalBinary()
+		if err != nil {
+			logger.Get().Fatalf("Got error marshaling mainheader: %s", err.Error())
+		}
+
+		// FIX: Still missing MessageResponse struct
 
 		data, err := sendPacket.MarshalBinary()
 		if err != nil {

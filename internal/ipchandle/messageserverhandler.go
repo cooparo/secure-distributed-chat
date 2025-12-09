@@ -6,6 +6,7 @@ import (
 
 	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
+	"github.com/cooparo/secure-distributed-chat/pkg/common"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
 )
@@ -24,7 +25,7 @@ func handleServerSendMessage(ctx context.Context, conn net.Conn, query *reposito
 		return err
 	}
 
-	logger.Get().Infof("Sending to: %s: Message length is %d", sendmsghdr.PeerAddres.Base32(), sendmsghdr.MessageContentLength)
+	logger.Get().Infof("Sending to: %s: Message length is %d", sendmsghdr.PeerAddress.Base32(), sendmsghdr.MessageLength)
 
 	return nil
 }
@@ -54,7 +55,7 @@ func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repos
 		CommandType: ipcprotocol.CommandTypeMessageResponse,
 	}
 
-	countOfMsg := ipcprotocol.NumberOfMesseges(len(msgRows))
+	countOfMsg := uint16(len(msgRows))
 
 	var buf []byte
 
@@ -64,19 +65,23 @@ func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repos
 	}
 	buf = append(buf, mainBytes...)
 
-	countByts, err := countOfMsg.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	buf = append(buf, countByts...)
+	buf = common.Uint16AppendBinary(buf, countOfMsg)
 
 	for _, msgItem := range msgRows {
+		senderAddress, err := identity.IdentityFromBase32(msgItem.SenderAddress)
+		if err != nil {
+			return err
+		}
+		receiverAddress, err := identity.IdentityFromBase32(msgItem.ReceiverAddress)
+		if err != nil {
+			return err
+		}
+
 		reshdr := ipcprotocol.MessageResponseHeader{
-			// somtong liek this if we want to decode from sting to
-			ReceiverAddress:      identity.IdentityAddress(msgItem.ReceiverAddress).ByAnyDecodeFromBase32(),
-			SenderAddress:        identity.IdentityAddress(msgItem.SenderAddress).ByAnyDecodeFromBase32(),
-			Timestamp:            ipcprotocol.Timestamp(msgItem.Time),
-			MessageContentLength: uint16(len(msgItem.Contents)),
+			SenderAddress:   senderAddress,
+			ReceiverAddress: receiverAddress,
+			Timestamp:       common.Timestamp(msgItem.Time),
+			MessageLength:   uint16(len(msgItem.Contents)),
 		}
 
 		reshdrBytes, err := reshdr.MarshalBinary()
@@ -87,12 +92,8 @@ func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repos
 
 		logger.Get().Info(buf)
 
-		data := ipcprotocol.MessageData(msgItem.Contents)
-		dataBytes, err := data.MarshalBinary()
-		if err != nil {
-			return err
-		}
-		buf = append(buf, dataBytes...)
+		data := []byte(msgItem.Contents)
+		buf = append(buf, data...)
 	}
 
 	_, err = conn.Write(buf)

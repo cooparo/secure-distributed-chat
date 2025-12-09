@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 
+	"github.com/cooparo/secure-distributed-chat/pkg/common"
 	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
 )
 
@@ -13,10 +14,8 @@ func handleClientMessageRequest(ctx context.Context, conn net.Conn) error {
 		return err
 	}
 
-	var numofmsgs ipcprotocol.NumberOfMesseges
-	if err := numofmsgs.UnmarshalBinary(numofmsgshdrBytes); err != nil {
-		return err
-	}
+	var numofmsgs uint16
+	numofmsgs = common.Uint16UnmarshalBinary(numofmsgshdrBytes)
 
 	var responMsgs []ipcprotocol.MessageResponsePacket
 	for range numofmsgs {
@@ -30,14 +29,14 @@ func handleClientMessageRequest(ctx context.Context, conn net.Conn) error {
 			return err
 		}
 
-		dataBytes := make([]byte, currntReshdr.MessageContentLength)
+		dataBytes := make([]byte, currntReshdr.MessageLength)
 		if _, err := conn.Read(dataBytes); err != nil {
 			return err
 		}
 
 		currntpkt := ipcprotocol.MessageResponsePacket{
-			HeaderResponce: currntReshdr,
-			Data:           ipcprotocol.MessageData(dataBytes),
+			Header: currntReshdr,
+			Data:   ipcprotocol.MessageData(dataBytes),
 		}
 
 		responMsgs = append(responMsgs, currntpkt)

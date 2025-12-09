@@ -28,6 +28,15 @@ func init() {
 }
 
 func connect() (net.Conn, error) {
-	socketPath := ipcprotocol.DefaultSocketPath()
-	return net.Dial("unix", socketPath)
+	socketPath, err := ipcprotocol.DefaultSocketPath()
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.Dial("unix", socketPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
 }

@@ -66,24 +66,27 @@ var rootCmd = &cobra.Command{
 
 		bindAddr := fmt.Sprintf("[%s]:%d", addr, port)
 		logger.Get().Infof("Starting server on %s", bindAddr)
-		ln, err := net.Listen("tcp", bindAddr)
+		tcpLn, err := net.Listen("tcp", bindAddr)
 		if err != nil {
 			logger.Get().Fatalf("Got error making TCP listener: %s", err.Error())
 		}
 
-		nethandle.ServeListener(ctx, ln, &wg, mgr, query)
+		nethandle.ServeListener(ctx, tcpLn, &wg, mgr, query)
 
 		// Socket init
-		var s net.Listener
-		sp := ipcprotocol.DefaultSocketPath()
-		s, err = net.Listen("unix", sp)
+		var sockLn net.Listener
+		sp, err := ipcprotocol.DefaultSocketPath()
+		if err != nil {
+			logger.Get().Fatalf("Got error while getting socket path: %s", err.Error())
+		}
 
+		sockLn, err = net.Listen("unix", sp)
 		if err != nil {
 			logger.Get().Fatalf("Got error making Socket listener: %s", err.Error())
 		}
 
 		logger.Get().Infof("Starting server on socket %s", sp)
-		ipchandle.ServeIpcListener(ctx, s, &wg)
+		ipchandle.ServerIpcListener(ctx, sockLn, &wg, query)
 
 		// Wait for shutdown
 		<-ctx.Done()

@@ -1,26 +1,30 @@
 package ipcprotocol
 
 import (
+	"github.com/cooparo/secure-distributed-chat/pkg/common"
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 )
 
 const (
-	SizePeerAddres        = identity.SizeIdentityAddress
-	SizeSendMessageHeader = SizePeerAddres + SizeMessageContentLength
+	SizeSendMessageHeader = identity.SizeIdentityAddress + SizeMessageLength
 )
 
 type SendMessageHeader struct {
-	PeerAddres           identity.IdentityAddress
-	MessageContentLength uint16
+	PeerAddress   identity.IdentityAddress
+	MessageLength uint16
 }
 
 func (msgsendhdr *SendMessageHeader) AppendBinary(b []byte) ([]byte, error) {
-	if err := msgsendhdr.PeerAddres.CheckSize(); err != nil {
+	if err := msgsendhdr.PeerAddress.CheckSize(); err != nil {
 		return nil, err
 	}
-	b = append(b, msgsendhdr.PeerAddres...)
-	b = append(b, byte(msgsendhdr.MessageContentLength))
+
+	// Encode PeerAddress
+	b = append(b, msgsendhdr.PeerAddress...)
+
+	// Encode MessageLength
+	b = append(b, byte(msgsendhdr.MessageLength))
 
 	return b, nil
 }
@@ -45,11 +49,15 @@ func (msgreshdr *SendMessageHeader) UnmarshalBinary(b []byte) error {
 		}
 	}
 
-	msgreshdr.PeerAddres = make([]byte, identity.SizeIdentityAddress)
-	buf = buf[:identity.SizeIdentityAddress]
+	// Decode PeerAddress
+	msgreshdr.PeerAddress = make([]byte, identity.SizeIdentityAddress)
+	copy(msgreshdr.PeerAddress, buf[:identity.SizeIdentityAddress])
 
-	dataLen := uint16(buf[1]) | uint16(buf[0])<<8
-	msgreshdr.MessageContentLength = dataLen
+	buf = buf[identity.SizeIdentityAddress:]
+
+	// Decode MessageLength
+	msglen := common.Uint16UnmarshalBinary(buf[:SizeMessageLength])
+	msgreshdr.MessageLength = msglen
 
 	return nil
 }

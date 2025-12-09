@@ -1,6 +1,7 @@
 package ipcprotocol
 
 import (
+	"github.com/cooparo/secure-distributed-chat/pkg/common"
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 )
@@ -12,48 +13,26 @@ const (
 
 	SizeMessageSenderAddress   = identity.SizeIdentityAddress
 	SizeMessageReceiverAddress = identity.SizeIdentityAddress
-	SizeTimestamp              = 8
-	SizeMessageContentLength   = 2
-	SizeMessageResponseHeader  = SizeMessageSenderAddress + SizeMessageReceiverAddress + SizeTimestamp + SizeMessageContentLength
+	SizeMessageLength          = 2
+	SizeMessageResponseHeader  = SizeMessageSenderAddress + SizeMessageReceiverAddress + common.SizeTimestamp + SizeMessageLength
 )
 
 type MessageRequestHeader struct {
 	Address identity.IdentityAddress
 }
 
-type NumberOfMesseges uint16
-
-type Timestamp int64
-
 type MessageData []byte
 
 type MessageResponseHeader struct {
-	ReceiverAddress      identity.IdentityAddress
-	SenderAddress        identity.IdentityAddress
-	Timestamp            Timestamp
-	MessageContentLength uint16
+	SenderAddress   identity.IdentityAddress
+	ReceiverAddress identity.IdentityAddress
+	Timestamp       common.Timestamp
+	MessageLength   uint16
 }
 
 type MessageResponsePacket struct {
-	HeaderResponce MessageResponseHeader
-	Data           MessageData
-}
-
-func (msgdata MessageData) AppendBinary(b []byte) ([]byte, error) {
-	return append(b, msgdata...), nil
-}
-
-func (msgdata *MessageData) UnmarshalBinary(b []byte, datalen uint16) error {
-	buf := b
-	*msgdata = make([]byte, datalen)
-	copy(*msgdata, buf)
-	return nil
-}
-
-func (msgdata MessageData) MarshalBinary() ([]byte, error) {
-	b := make([]byte, len(msgdata))
-	copy(b, msgdata)
-	return b, nil
+	Header MessageResponseHeader
+	Data   MessageData
 }
 
 func (msgreshdr *MessageResponseHeader) AppendBinary(b []byte) ([]byte, error) {
@@ -64,16 +43,21 @@ func (msgreshdr *MessageResponseHeader) AppendBinary(b []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	// Encode SenderAddress
 	b = append(b, msgreshdr.SenderAddress...)
+
+	// Encode ReceiverAddress
 	b = append(b, msgreshdr.ReceiverAddress...)
 
+	// Encode Timestamp
 	var err error
 	b, err = msgreshdr.Timestamp.AppendBinary(b)
 	if err != nil {
 		return nil, err
 	}
 
-	b = append(b, byte(msgreshdr.MessageContentLength))
+	// Encode MessageLength
+	common.Uint16AppendBinary(b, msgreshdr.MessageLength)
 
 	return b, nil
 }
@@ -98,20 +82,27 @@ func (msgreshdr *MessageResponseHeader) UnmarshalBinary(b []byte) error {
 		}
 	}
 
-	msgreshdr.ReceiverAddress = make([]byte, identity.SizeIdentityAddress)
-	copy(msgreshdr.ReceiverAddress, buf[:identity.SizeIdentityAddress])
-	buf = buf[identity.SizeIdentityAddress:]
-
+	// Decode SenderAddress
 	msgreshdr.SenderAddress = make([]byte, identity.SizeIdentityAddress)
 	copy(msgreshdr.SenderAddress, buf[:identity.SizeIdentityAddress])
 
-	if err := msgreshdr.Timestamp.UnmarshalBinary(buf); err != nil {
-		return err
-	}
-	buf = buf[SizeTimestamp:]
+	buf = buf[identity.SizeIdentityAddress:]
 
-	dataLen := uint16(buf[1]) | uint16(buf[0])<<8
-	msgreshdr.MessageContentLength = dataLen
+	// Decode ReceiverAddress
+	msgreshdr.ReceiverAddress = make([]byte, identity.SizeIdentityAddress)
+	copy(msgreshdr.ReceiverAddress, buf[:identity.SizeIdentityAddress])
+
+	buf = buf[identity.SizeIdentityAddress:]
+
+	// Decode Timestamp
+	timestamp := common.Int64UnmarshalBinary(buf[:common.SizeTimestamp])
+	msgreshdr.Timestamp = common.Timestamp(timestamp)
+
+	buf = buf[common.SizeTimestamp:]
+
+	// Decode MessageLength
+	msglen := common.Uint16UnmarshalBinary(buf[:2])
+	msgreshdr.MessageLength = msglen
 
 	return nil
 }
@@ -147,67 +138,9 @@ func (msgreqhdr *MessageRequestHeader) UnmarshalBinary(b []byte) error {
 		}
 	}
 
+	// Decode Address
 	msgreqhdr.Address = make([]byte, identity.SizeIdentityAddress)
 	copy(msgreqhdr.Address, buf[:identity.SizeIdentityAddress])
 
-	return nil
-}
-
-func (t Timestamp) AppendBinary(b []byte) ([]byte, error) {
-	return append(b,
-		byte(t>>56),
-		byte(t>>48),
-		byte(t>>40),
-		byte(t>>32),
-		byte(t>>24),
-		byte(t>>16),
-		byte(t>>8),
-		byte(t)), nil
-}
-
-func (t Timestamp) UnmarshalBinary(b []byte) error {
-	ts := int64(b[7]) |
-		int64(b[6])<<8 |
-		int64(b[5])<<16 |
-		int64(b[4])<<24 |
-		int64(b[3])<<32 |
-		int64(b[2])<<40 |
-		int64(b[1])<<48 |
-		int64(b[0])<<56
-
-	t = Timestamp(ts)
-	return nil
-}
-func (msgcount NumberOfMesseges) AppendBinary(b []byte) ([]byte, error) {
-	v := uint16(msgcount)
-
-	return append(b,
-		byte(v>>8),
-		byte(v),
-	), nil
-}
-
-func (msgcount NumberOfMesseges) MarshalBinary() ([]byte, error) {
-	b, err := msgcount.AppendBinary(make([]byte, 0, SizeTimestamp))
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-func (msgcount NumberOfMesseges) UnmarshalBinary(b []byte) error {
-	buf := b
-	if len(buf) != SizeNumberOfMessages {
-		return &errs.SizeError{
-			SubjectName:         "NumberOfMesseges",
-			SubjectActualSize:   len(buf),
-			SubjectExpectedSize: SizeNumberOfMessages,
-		}
-
-	}
-
-	dataLen := uint16(buf[1]) | uint16(buf[0])<<8
-	msgcount = NumberOfMesseges(dataLen)
 	return nil
 }

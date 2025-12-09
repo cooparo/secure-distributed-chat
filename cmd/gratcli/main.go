@@ -11,7 +11,9 @@ var rootCmd = &cobra.Command{
 	Use:   "gratcli",
 	Short: "Grat CLI interface",
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			panic(err)
+		}
 	},
 }
 

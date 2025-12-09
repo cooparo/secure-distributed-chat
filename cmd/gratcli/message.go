@@ -49,50 +49,42 @@ var messageCmd = &cobra.Command{
 			fmt.Printf("Error connecting to server: %s\nIs gratserver running?\n", err.Error())
 			os.Exit(1)
 		}
-		defer conn.Close()
+		defer func() {
+			if err := conn.Close(); err != nil {
+				panic(err)
+			}
+		}()
 
-		var buf []byte
 		// Send packet
 		mainhdr := &ipcprotocol.MainHeader{
 			Version:     1,
 			CommandType: ipcprotocol.CommandTypeSendMessage,
 		}
-		hdrpkt, err := mainhdr.MarshalBinary()
+
+		pkt, err := mainhdr.MarshalBinary()
 		if err != nil {
-			logger.Get().Fatalf("Got error marshaling mainheader: %s", err.Error())
+			logger.Get().Fatalf("Got error marshaling MainHeader: %s", err.Error())
+			os.Exit(1)
 		}
 
-		buf = append(buf, hdrpkt...)
-
-		// FIX: Still missing MessageResponse struct
-		sendPacket := &ipcprotocol.SendMessageHeader{
+		sendmsghdr := &ipcprotocol.SendMessageHeader{
 			PeerAddress:   recvAddress,
 			MessageLength: uint16(len(messageStr)),
 		}
 
-		sendhdrpkt, err := sendPacket.MarshalBinary()
-		if err != nil {
-			fmt.Printf("Error marshaling packet: %s\n", err.Error())
-			os.Exit(1)
+		sendmsg := &ipcprotocol.SendMessage{
+			Header: sendmsghdr,
+			Data:   []byte(messageStr),
 		}
 
-		buf = append(buf, sendhdrpkt...)
-
-		msg := ipcprotocol.MessageData([]byte(messageStr))
-		msgdata := &msg
-
-		pktdata, err := msgdata.MarshalBinary(sendPacket.MessageLength)
+		pkt, err = sendmsg.AppendBinary(pkt)
 		if err != nil {
-			fmt.Printf("Error marshaling packet: %s\n", err.Error())
+			fmt.Printf("Got error marshaling SendMessage: %s", err.Error())
 			os.Exit(1)
 		}
-
-		buf = append(buf, pktdata...)
-
-		fmt.Print("buf", buf)
 
 		// Write to socket
-		if _, err := conn.Write(buf); err != nil {
+		if _, err := conn.Write(pkt); err != nil {
 			fmt.Printf("Error sending packet: %s\n", err.Error())
 			os.Exit(1)
 		}
@@ -125,8 +117,12 @@ var messageCmd = &cobra.Command{
 
 func init() {
 	messageCmd.Flags().StringP("receiver", "r", "", "Address of the receiver")
-	messageCmd.MarkFlagRequired("receiver")
+	if err := messageCmd.MarkFlagRequired("receiver"); err != nil {
+		panic(err)
+	}
 	messageCmd.Flags().StringP("message", "m", "", "Send message")
-	messageCmd.MarkFlagRequired("message")
+	if err := messageCmd.MarkFlagRequired("message"); err != nil {
+		panic(err)
+	}
 	messageCmd.Flags().StringP("keyfile", "k", "./private.key", "Private key file")
 }

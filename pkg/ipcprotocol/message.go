@@ -7,60 +7,44 @@ import (
 )
 
 const (
-	SizeMessageRequestHeader = identity.SizeIdentityAddress
-
-	SizeNumberOfMessages = 2
-
 	SizeMessageSenderAddress   = identity.SizeIdentityAddress
 	SizeMessageReceiverAddress = identity.SizeIdentityAddress
 	SizeMessageLength          = 2
-	SizeMessageResponseHeader  = SizeMessageSenderAddress + SizeMessageReceiverAddress + common.SizeTimestamp + SizeMessageLength
+	SizeMessageHeader          = SizeMessageSenderAddress + SizeMessageReceiverAddress + common.SizeTimestamp + SizeMessageLength
 )
 
-type MessageRequestHeader struct {
-	Address identity.IdentityAddress
-}
-
-type MessageResponseHeader struct {
+type MessageHeader struct {
 	SenderAddress   identity.IdentityAddress
 	ReceiverAddress identity.IdentityAddress
 	Timestamp       common.Timestamp
 	MessageLength   uint16
 }
 
-type MessageResponsePacket struct {
-	Header MessageResponseHeader
-	Data   MessageData
-}
-
-func (msgreshdr *MessageResponseHeader) AppendBinary(b []byte) ([]byte, error) {
-	if err := msgreshdr.ReceiverAddress.CheckSize(); err != nil {
+func (msghdr *MessageHeader) AppendBinary(b []byte) ([]byte, error) {
+	if err := msghdr.SenderAddress.CheckSize(); err != nil {
 		return nil, err
 	}
-	if err := msgreshdr.SenderAddress.CheckSize(); err != nil {
+	if err := msghdr.ReceiverAddress.CheckSize(); err != nil {
 		return nil, err
 	}
 
 	// Encode SenderAddress
-	b = append(b, msgreshdr.SenderAddress...)
+	b = append(b, msghdr.SenderAddress...)
+
 	// Encode ReceiverAddress
-	b = append(b, msgreshdr.ReceiverAddress...)
+	b = append(b, msghdr.ReceiverAddress...)
 
 	// Encode Timestamp
-	var err error
-	b, err = msgreshdr.Timestamp.AppendBinary(b)
-	if err != nil {
-		return nil, err
-	}
+	b = common.Int64AppendBinary(b, int64(msghdr.Timestamp))
 
 	// Encode MessageLength
-	b = common.Uint16AppendBinary(b, msgreshdr.MessageLength)
+	b = common.Uint16AppendBinary(b, msghdr.MessageLength)
 
 	return b, nil
 }
 
-func (msgreshdr *MessageResponseHeader) MarshalBinary() ([]byte, error) {
-	b, err := msgreshdr.AppendBinary(make([]byte, 0, SizeMessageResponseHeader))
+func (msghdr *MessageHeader) MarshalBinary() ([]byte, error) {
+	b, err := msghdr.AppendBinary(make([]byte, 0, SizeMessageHeader))
 	if err != nil {
 		return nil, err
 	}
@@ -68,76 +52,115 @@ func (msgreshdr *MessageResponseHeader) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-func (msgreshdr *MessageResponseHeader) UnmarshalBinary(b []byte) error {
+func (msghdr *MessageHeader) UnmarshalBinary(b []byte) error {
 	buf := b
 
-	if len(buf) != SizeMessageResponseHeader {
+	if len(buf) != SizeMessageHeader {
 		return &errs.SizeError{
-			SubjectName:         "SizeMessageResponseHeader",
+			SubjectName:         "MessageHeader",
+			SubjectActualSize:   len(buf),
+			SubjectExpectedSize: SizeMessageHeader,
+		}
+	}
+
+	// Decode SenderAddress
+	msghdr.SenderAddress = make([]byte, identity.SizeIdentityAddress)
+	copy(msghdr.SenderAddress, buf[:identity.SizeIdentityAddress])
+
+	buf = buf[identity.SizeIdentityAddress:]
+
+	// Decode ReceiverAddress
+	msghdr.ReceiverAddress = make([]byte, identity.SizeIdentityAddress)
+	copy(msghdr.ReceiverAddress, buf[:identity.SizeIdentityAddress])
+
+	buf = buf[identity.SizeIdentityAddress:]
+
+	// Decode Timestamp
+	msghdr.Timestamp = common.Timestamp(common.Int64UnmarshalBinary(buf[:common.SizeTimestamp]))
+
+	buf = buf[common.SizeTimestamp:]
+
+	// Decode MessageLength
+	msghdr.MessageLength = common.Uint16UnmarshalBinary(buf[:SizeMessageLength])
+
+	return nil
+}
+
+type Message struct {
+	Header *MessageHeader
+	Data   []byte
+}
+
+func (msg *Message) AppendBinary(b []byte) ([]byte, error) {
+	if msg.Header == nil {
+		return nil, &errs.IsNilError{SubjectName: "Header"}
+	}
+	if len(msg.Data) != int(msg.Header.MessageLength) {
+		return nil, &errs.SizeError{
+			SubjectName:         "Data",
+			SubjectActualSize:   len(msg.Data),
+			SubjectExpectedSize: int(msg.Header.MessageLength),
+		}
+	}
+
+	// Encode Header
+	b, err := msg.Header.AppendBinary(b)
+	if err != nil {
+		return nil, err
+	}
+
+	// Encode Data
+	b = append(b, msg.Data...)
+
+	return b, nil
+}
+
+func (msg *Message) MarshalBinary() ([]byte, error) {
+	if msg.Header == nil {
+		return nil, &errs.IsNilError{SubjectName: "Header"}
+	}
+	sizeMessage := SizeMessageHeader + msg.Header.MessageLength
+	b, err := msg.AppendBinary(make([]byte, 0, sizeMessage))
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func (msg *Message) UnmarshalBinary(b []byte) error {
+	buf := b
+
+	if len(buf) < SizeMessageHeader {
+		return &errs.MinSizeError{
+			SubjectName:         "Message",
 			SubjectActualSize:   len(buf),
 			SubjectExpectedSize: SizeMessageResponseHeader,
 		}
 	}
 
-	// Decode SenderAddress
-	msgreshdr.SenderAddress = make([]byte, identity.SizeIdentityAddress)
-	copy(msgreshdr.SenderAddress, buf[:identity.SizeIdentityAddress])
-
-	buf = buf[identity.SizeIdentityAddress:]
-
-	// Decode ReceiverAddress
-	msgreshdr.ReceiverAddress = make([]byte, identity.SizeIdentityAddress)
-	copy(msgreshdr.ReceiverAddress, buf[:identity.SizeIdentityAddress])
-
-	buf = buf[identity.SizeIdentityAddress:]
-
-	// Decode Timestamp
-	timestamp := common.Int64UnmarshalBinary(buf[:common.SizeTimestamp])
-	msgreshdr.Timestamp = common.Timestamp(timestamp)
-
-	buf = buf[common.SizeTimestamp:]
-
-	// Decode MessageLength
-	msglen := common.Uint16UnmarshalBinary(buf[:2])
-	msgreshdr.MessageLength = msglen
-
-	return nil
-}
-
-func (msgreqhdr *MessageRequestHeader) AppendBinary(b []byte) ([]byte, error) {
-	if err := msgreqhdr.Address.CheckSize(); err != nil {
-		return nil, err
+	// Decode Header
+	msghdrByte := make([]byte, SizeMessageHeader)
+	copy(msghdrByte, buf[:SizeMessageHeader])
+	msghdr := &MessageHeader{}
+	if err := msghdr.UnmarshalBinary(msghdrByte); err != nil {
+		return err
 	}
+	msg.Header = msghdr
 
-	// Encode Address
-	b = append(b, msgreqhdr.Address...)
+	buf = buf[SizeMessageResponseHeader:]
 
-	return b, nil
-}
-
-func (msgreqhdr *MessageRequestHeader) MarshalBinary() ([]byte, error) {
-	b, err := msgreqhdr.AppendBinary(make([]byte, 0, SizeMessageRequestHeader))
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-func (msgreqhdr *MessageRequestHeader) UnmarshalBinary(b []byte) error {
-	buf := b
-
-	if len(buf) != SizeMessageRequestHeader {
+	if len(buf) != int(msghdr.MessageLength) {
 		return &errs.SizeError{
-			SubjectName:         "MessageRequestHeader",
+			SubjectName:         "Data",
 			SubjectActualSize:   len(buf),
-			SubjectExpectedSize: SizeMessageRequestHeader,
+			SubjectExpectedSize: int(msghdr.MessageLength),
 		}
 	}
 
-	// Decode Address
-	msgreqhdr.Address = make([]byte, identity.SizeIdentityAddress)
-	copy(msgreqhdr.Address, buf[:identity.SizeIdentityAddress])
+	// Decode Data
+	msg.Data = make([]byte, msghdr.MessageLength)
+	copy(msg.Data, buf[:msghdr.MessageLength])
 
 	return nil
 }

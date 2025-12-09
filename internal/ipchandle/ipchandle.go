@@ -33,14 +33,16 @@ var packetServerHandler = map[ipcprotocol.CommandType]ipcServerpacketHandler{
 type ipcClientPacketHandler func(context.Context, net.Conn) error
 
 var packetClientHandler = map[ipcprotocol.CommandType]ipcClientPacketHandler{
-	ipcprotocol.CommandTypeMessageResponse: handleClientMessageRequest,
+	ipcprotocol.CommandTypeMessageResponse: handleClientMessageResponse,
 	//ipcprotocol.CommandTypeSendMessageAck:  handleClientMessageRqust,
 }
 
 func ServerIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, query *repository.Queries) {
 	go func() {
 		<-ctx.Done()
-		ln.Close()
+		if err := ln.Close(); err != nil {
+			panic(err)
+		}
 	}()
 
 	go func() {
@@ -60,7 +62,11 @@ func ServerIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup,
 			wg.Add(1)
 			go func(c net.Conn) {
 				defer wg.Done()
-				defer c.Close()
+				defer func() {
+					if err := c.Close(); err != nil {
+						panic(err)
+					}
+				}()
 
 				handleServerConn(ctx, c, query)
 			}(conn)
@@ -68,19 +74,24 @@ func ServerIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup,
 	}()
 }
 
-func clientIpcListener(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) {
+func ClientIpcListener(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) {
 	defer wg.Done()
 	go func() {
 		<-ctx.Done()
-		conn.Close()
-
+		if err := conn.Close(); err != nil {
+			panic(err)
+		}
 	}()
 
 	handleConnClient(ctx, conn)
 }
 
 func handleConnClient(ctx context.Context, conn net.Conn) {
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
 	logger.Get().Infof("Got connection from %s", conn.RemoteAddr().String())
 
@@ -142,7 +153,11 @@ func handleConnClient(ctx context.Context, conn net.Conn) {
 }
 
 func handleServerConn(ctx context.Context, conn net.Conn, query *repository.Queries) {
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
 	logger.Get().Infof("Got connection from %s", conn.RemoteAddr().String())
 
@@ -154,7 +169,10 @@ func handleServerConn(ctx context.Context, conn net.Conn, query *repository.Quer
 		}
 
 		mainhdrByte := make([]byte, ipcprotocol.SizeMainHeader)
-		conn.SetReadDeadline(time.Now().Add(connTimeout))
+		if err := conn.SetReadDeadline(time.Now().Add(connTimeout)); err != nil {
+			logger.Get().Error("Failed to set ReadDeadline")
+			return
+		}
 
 		_, err := io.ReadFull(conn, mainhdrByte)
 		if err != nil {

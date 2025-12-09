@@ -2,7 +2,6 @@ package ipchandle
 
 import (
 	"context"
-	"io"
 	"net"
 
 	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
@@ -12,37 +11,51 @@ import (
 	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
 )
 
-// handleServerSendMessage
-// MessageRequestHeader
-
 func handleServerSendMessage(ctx context.Context, conn net.Conn, query *repository.Queries) error {
 
-	sendhdrByte := make([]byte, ipcprotocol.SizeSendMessageHeader)
-	if _, err := io.ReadFull(conn, sendhdrByte); err != nil {
+	sendmsghdrByte := make([]byte, ipcprotocol.SizeSendMessageHeader)
+	if _, err := conn.Read(sendmsghdrByte); err != nil {
 		return err
 	}
 
-	var sendmsghdr ipcprotocol.SendMessageHeader
-	if err := sendmsghdr.UnmarshalBinary(sendhdrByte); err != nil {
+	sendmsghdr := &ipcprotocol.SendMessageHeader{}
+	if err := sendmsghdr.UnmarshalBinary(sendmsghdrByte); err != nil {
 		return err
 	}
 
-	logger.Get().Infof("Sending to: %s; Message length=%d",
-		sendmsghdr.PeerAddress.Base32(),
-		sendmsghdr.MessageLength)
+	logger.Get().Infof("Sending to: %s", sendmsghdr.PeerAddress.Base32())
 
-	msgpktdataByte := make([]byte, sendmsghdr.MessageLength)
-	if _, err := io.ReadFull(conn, msgpktdataByte); err != nil {
+	msg := &ipcprotocol.Message{}
+
+	msghdrByte := make([]byte, ipcprotocol.SizeMessageHeader)
+	if _, err := conn.Read(msghdrByte); err != nil {
 		return err
 	}
 
-	logger.Get().Infof("Message:\n%s", string(msgpktdataByte))
+	msghdr := &ipcprotocol.MessageHeader{}
+	if err := msghdr.UnmarshalBinary(msghdrByte); err != nil {
+		return err
+	}
+
+	msg.Header = msghdr
+
+	logger.Get().Infof("Message Length: %d", msghdr.MessageLength)
+
+	msgData := make([]byte, msghdr.MessageLength)
+	if _, err := conn.Read(msgData); err != nil {
+		return err
+	}
+
+	logger.Get().Debugf("Message data: %s", msgData)
+
+	msg.Data = msgData
+
 	return nil
 }
 
 func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repository.Queries) error {
 	msgreqhdrByte := make([]byte, ipcprotocol.SizeMessageRequestHeader)
-	if _, err := io.ReadFull(conn, msgreqhdrByte); err != nil {
+	if _, err := conn.Read(msgreqhdrByte); err != nil {
 		return err
 	}
 
@@ -56,26 +69,26 @@ func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repos
 		return err
 	}
 
-	logger.Get().Info(msgRows)
-
 	// TODO: if len = 0 then return something empty array
 
-	mainHeader := ipcprotocol.MainHeader{
+	mainhdr := &ipcprotocol.MainHeader{
 		Version:     ipcprotocol.Version(1),
 		CommandType: ipcprotocol.CommandTypeMessageResponse,
 	}
 
-	countOfMsg := uint16(len(msgRows))
-
-	var buf []byte
-
-	mainBytes, err := mainHeader.MarshalBinary()
+	pkt, err := mainhdr.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	buf = append(buf, mainBytes...)
 
-	buf = common.Uint16AppendBinary(buf, countOfMsg)
+	msgresphdr := &ipcprotocol.MessageResponseHeader{
+		MessageCount: uint16(len(msgRows)),
+	}
+
+	pkt, err = msgresphdr.AppendBinary(pkt)
+	if err != nil {
+		return err
+	}
 
 	for _, msgItem := range msgRows {
 		senderAddress, err := identity.IdentityFromBase32(msgItem.SenderAddress)
@@ -87,27 +100,27 @@ func handleServerMessageRequest(ctx context.Context, conn net.Conn, query *repos
 			return err
 		}
 
-		reshdr := ipcprotocol.MessageResponseHeader{
+		msgData := []byte(msgItem.Contents)
+
+		msghdr := &ipcprotocol.MessageHeader{
 			SenderAddress:   senderAddress,
 			ReceiverAddress: receiverAddress,
 			Timestamp:       common.Timestamp(msgItem.Time),
-			MessageLength:   uint16(len(msgItem.Contents)),
+			MessageLength:   uint16(len(msgData)),
 		}
 
-		reshdrBytes, err := reshdr.MarshalBinary()
+		msg := &ipcprotocol.Message{
+			Header: msghdr,
+			Data:   msgData,
+		}
+
+		pkt, err = msg.AppendBinary(pkt)
 		if err != nil {
 			return err
 		}
-		buf = append(buf, reshdrBytes...)
-
-		logger.Get().Info(buf)
-
-		data := []byte(msgItem.Contents)
-		buf = append(buf, data...)
 	}
 
-	_, err = conn.Write(buf)
-	if err != nil {
+	if _, err := conn.Write(pkt); err != nil {
 		return err
 	}
 

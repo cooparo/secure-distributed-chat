@@ -32,7 +32,7 @@ func handleClientMessageRequest(ctx context.Context, conn net.Conn) error {
 		}
 
 		dataBytes := make([]byte, currntReshdr.MessageLength)
-		if _, err := conn.Read(dataBytes); err != nil {
+		if _, err := io.ReadFull(conn, dataBytes); err != nil {
 			return err
 		}
 

@@ -24,7 +24,7 @@ func (msgsendhdr *SendMessageHeader) AppendBinary(b []byte) ([]byte, error) {
 	b = append(b, msgsendhdr.PeerAddress...)
 
 	// Encode MessageLength
-	b = append(b, byte(msgsendhdr.MessageLength))
+	b = common.Uint16AppendBinary(b, msgsendhdr.MessageLength)
 
 	return b, nil
 }

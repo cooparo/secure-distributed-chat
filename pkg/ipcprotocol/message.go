@@ -41,10 +41,10 @@ func (msgreshdr *MessageResponseHeader) AppendBinary(b []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// Encode ReceiverAddress
-	b = append(b, msgreshdr.ReceiverAddress...)
 	// Encode SenderAddress
 	b = append(b, msgreshdr.SenderAddress...)
+	// Encode ReceiverAddress
+	b = append(b, msgreshdr.ReceiverAddress...)
 
 	// Encode Timestamp
 	var err error
@@ -54,7 +54,7 @@ func (msgreshdr *MessageResponseHeader) AppendBinary(b []byte) ([]byte, error) {
 	}
 
 	// Encode MessageLength
-	common.Uint16AppendBinary(b, msgreshdr.MessageLength)
+	b = common.Uint16AppendBinary(b, msgreshdr.MessageLength)
 
 	return b, nil
 }

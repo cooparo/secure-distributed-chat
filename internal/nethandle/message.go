@@ -55,12 +55,15 @@ func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManag
 
 	logger.Get().Debugf("Message from %s decrypted to %s", msghdr.SendIDAddr.Base32(), plaintext)
 
-	query.AddMessage(ctx, repository.AddMessageParams{
+	err = query.AddMessage(ctx, repository.AddMessageParams{
 		SenderAddress:   msghdr.SendIDAddr.Base32(),
 		ReceiverAddress: mgr.Address.Base32(),
 		Time:            time.Now().Unix(),
 		Contents:        string(plaintext),
 	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

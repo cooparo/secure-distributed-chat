@@ -96,7 +96,11 @@ func (privkeybndl *PrivateKeyBundle) Save(fileName string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
 	data, err := privkeybndl.MarshalBinary()
 	if err != nil {
@@ -118,7 +122,11 @@ func (privkeybndl *PrivateKeyBundle) Load(fileName string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
 	encoding := base64.StdEncoding
 	src := make([]byte, encoding.EncodedLen(SizePrivateKeyBundle))

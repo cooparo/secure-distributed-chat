@@ -75,6 +75,10 @@ func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) error {
 		recvPrevMsgCount = r.RecvChain.MsgCount
 	}
 	recvChainKey, recvNonce, err := r.RootChain.Step(recvChainDH)
+	if err != nil {
+		return err
+	}
+
 	recvChain := kdfchain.MsgKDFChain{
 		ChainKey:     recvChainKey,
 		Nonce:        recvNonce,
@@ -83,6 +87,10 @@ func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) error {
 	}
 
 	ourKey, err := ecdh.X25519().GenerateKey(rand.Reader)
+	if err != nil {
+		return err
+	}
+
 	sendChainDH, err := ourKey.ECDH(theirKey)
 	if err != nil {
 		return err
@@ -93,6 +101,10 @@ func (r *DoubleRatchet) Update(theirKey *ecdh.PublicKey) error {
 		sendPrevMsgCount = r.SendChain.MsgCount
 	}
 	sendChainKey, sendNonce, err := r.RootChain.Step(sendChainDH)
+	if err != nil {
+		return err
+	}
+
 	sendChain := kdfchain.MsgKDFChain{
 		ChainKey:     sendChainKey,
 		Nonce:        sendNonce,

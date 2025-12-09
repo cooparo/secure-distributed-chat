@@ -108,8 +108,6 @@ func (msghdr *MessageHeader) UnmarshalBinary(b []byte) error {
 	rkey, _ := curve.NewPublicKey(rkeyByte)
 	msghdr.RatchetKey = rkey
 
-	buf = buf[SizeRatchetKey:]
-
 	return nil
 }
 

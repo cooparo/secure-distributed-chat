@@ -335,8 +335,6 @@ func (kexresp *KeyExchangeResponse) UnmarshalBinary(b []byte) error {
 	rkey, _ := rkeyCurve.NewPublicKey(rkeyByte)
 	kexresp.RatchetKey = rkey
 
-	buf = buf[SizeRatchetKey:]
-
 	return nil
 }
 

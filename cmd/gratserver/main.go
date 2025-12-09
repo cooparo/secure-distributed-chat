@@ -9,9 +9,11 @@ import (
 	"syscall"
 
 	"github.com/cooparo/secure-distributed-chat/internal/database"
+	"github.com/cooparo/secure-distributed-chat/internal/ipchandle"
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/internal/nethandle"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
+	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 	"github.com/spf13/cobra"
 )
@@ -64,15 +66,27 @@ var rootCmd = &cobra.Command{
 
 		bindAddr := fmt.Sprintf("[%s]:%d", addr, port)
 		logger.Get().Infof("Starting server on %s", bindAddr)
-		ln, err := net.Listen("tcp", bindAddr)
+		tcpLn, err := net.Listen("tcp", bindAddr)
 		if err != nil {
 			logger.Get().Fatalf("Got error making TCP listener: %s", err.Error())
 		}
 
-		nethandle.ServeListener(ctx, ln, &wg, mgr, query)
+		nethandle.ServeListener(ctx, tcpLn, &wg, mgr, query)
 
-		// TODO: setup IPC socket
-		// TODO: call ipchandle.ServeListener(ctx, ln, &wg, mgr)
+		// Socket init
+		var sockLn net.Listener
+		sp, err := ipcprotocol.DefaultSocketPath()
+		if err != nil {
+			logger.Get().Fatalf("Got error while getting socket path: %s", err.Error())
+		}
+
+		sockLn, err = net.Listen("unix", sp)
+		if err != nil {
+			logger.Get().Fatalf("Got error making Socket listener: %s", err.Error())
+		}
+
+		logger.Get().Infof("Starting server on socket %s", sp)
+		ipchandle.ServerIpcListener(ctx, sockLn, &wg, query)
 
 		// Wait for shutdown
 		<-ctx.Done()

@@ -35,6 +35,25 @@ func (e *MinSizeError) Unwrap() error {
 	}
 }
 
+// Maximum Size Error
+type MaxSizeError struct {
+	SubjectName         string
+	SubjectActualSize   int
+	SubjectExpectedSize int
+}
+
+func (e *MaxSizeError) Error() string {
+	return fmt.Sprintf("Size of %s is too big: %d (expected %d)", e.SubjectName, e.SubjectActualSize, e.SubjectExpectedSize)
+}
+
+func (e *MaxSizeError) Unwrap() error {
+	return &SizeError{
+		SubjectName:         e.SubjectName,
+		SubjectActualSize:   e.SubjectActualSize,
+		SubjectExpectedSize: e.SubjectExpectedSize,
+	}
+}
+
 // Diffie-Hellman Curve Error
 type DHCurveError struct {
 	SubjectName          string

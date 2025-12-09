@@ -3,6 +3,7 @@ package netprotocol
 import (
 	"crypto/ecdh"
 
+	"github.com/cooparo/secure-distributed-chat/pkg/common"
 	"github.com/cooparo/secure-distributed-chat/pkg/doubleratchet"
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
@@ -42,16 +43,13 @@ func (msghdr *MessageHeader) AppendBinary(b []byte) ([]byte, error) {
 	b = append(b, msghdr.SendIDAddr...)
 
 	// Encode DataLength
-	dataLen := msghdr.DataLength
-	b = append(b,
-		byte(dataLen>>8),
-		byte(dataLen))
+	b = common.Uint16AppendBinary(b, msghdr.DataLength)
 
 	// Encode PrevChainCount
-	b = append(b, byte(msghdr.PrevChainCount))
+	b = common.Uint8AppendBinary(b, msghdr.PrevChainCount)
 
 	// Encode ChainCount
-	b = append(b, byte(msghdr.ChainCount))
+	b = common.Uint8AppendBinary(b, msghdr.ChainCount)
 
 	// Encode RatchetKey
 	b = append(b, msghdr.RatchetKey.Bytes()...)

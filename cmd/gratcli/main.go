@@ -3,7 +3,7 @@ package main
 import (
 	"net"
 
-	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
+	"github.com/cooparo/secure-distributed-chat/internal/ipchandle"
 	"github.com/spf13/cobra"
 )
 
@@ -30,7 +30,7 @@ func init() {
 }
 
 func connect() (net.Conn, error) {
-	socketPath, err := ipcprotocol.DefaultSocketPath()
+	socketPath, err := ipchandle.DefaultSocketPath()
 	if err != nil {
 		return nil, err
 	}

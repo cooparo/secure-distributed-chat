@@ -13,7 +13,6 @@ import (
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/internal/nethandle"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
-	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 	"github.com/spf13/cobra"
 )
@@ -75,7 +74,7 @@ var rootCmd = &cobra.Command{
 
 		// Socket init
 		var sockLn net.Listener
-		sp, err := ipcprotocol.DefaultSocketPath()
+		sp, err := ipchandle.DefaultSocketPath()
 		if err != nil {
 			logger.Get().Fatalf("Got error while getting socket path: %s", err.Error())
 		}

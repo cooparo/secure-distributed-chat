@@ -3,6 +3,7 @@ package netprotocol
 import (
 	"fmt"
 
+	"github.com/cooparo/secure-distributed-chat/pkg/common"
 	"github.com/cooparo/secure-distributed-chat/pkg/common/flags"
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
@@ -335,7 +336,7 @@ func (discresphdr *DiscoveryResponseHeader) AppendBinary(b []byte) ([]byte, erro
 	b = append(b, discresphdr.SendIDAddr...)
 
 	// Encode Flags
-	b = append(b, byte(discresphdr.Flags))
+	b = common.Uint8AppendBinary(b, uint8(discresphdr.Flags))
 
 	// Encode IdentityCount
 	b = append(b, byte(discresphdr.IdentityCount))
@@ -370,12 +371,12 @@ func (discresphdr *DiscoveryResponseHeader) UnmarshalBinary(b []byte) error {
 	buf = buf[identity.SizeIdentityAddress:]
 
 	// Decode Flags
-	discresphdr.Flags = flags.Flags(buf[0])
+	discresphdr.Flags = flags.Flags(common.Uint8UnmarshalBinary(buf[:SizeFlags]))
 
 	buf = buf[SizeFlags:]
 
 	// Decode IdentityCount
-	discresphdr.IdentityCount = uint8(buf[0])
+	discresphdr.IdentityCount = common.Uint8UnmarshalBinary(buf[:SizeIdentityCount])
 
 	return nil
 }

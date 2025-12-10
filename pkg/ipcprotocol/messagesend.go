@@ -2,12 +2,19 @@ package ipcprotocol
 
 import (
 	"github.com/cooparo/secure-distributed-chat/pkg/common"
+	"github.com/cooparo/secure-distributed-chat/pkg/common/flags"
 	"github.com/cooparo/secure-distributed-chat/pkg/errs"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 )
 
 const (
 	SizeSendMessageHeader = identity.SizeIdentityAddress + SizeMessageLength
+	SizeFlags             = 1
+	SizeSendMessageAck    = SizeFlags
+)
+
+const (
+	FlagSendMessageAck flags.Flags = 1 << iota
 )
 
 type SendMessageHeader struct {
@@ -125,6 +132,41 @@ func (sendmsg *SendMessage) UnmarshalBinary(b []byte) error {
 	// Decode Message
 	sendmsg.Data = make([]byte, sendmsghdr.MessageLength)
 	copy(sendmsg.Data, buf[:sendmsghdr.MessageLength])
+
+	return nil
+}
+
+type SendMessageAck struct {
+	Flags flags.Flags
+}
+
+func (sendmsgack *SendMessageAck) AppendBinary(b []byte) ([]byte, error) {
+
+	// Encode Flags
+	b = common.Uint8AppendBinary(b, uint8(sendmsgack.Flags))
+
+	return b, nil
+}
+
+func (sendmsgack *SendMessageAck) MarshalBinary() ([]byte, error) {
+	b, _ := sendmsgack.AppendBinary(make([]byte, 0, SizeSendMessageAck))
+
+	return b, nil
+}
+
+func (sendmsgack *SendMessageAck) UnmarshalBinary(b []byte) error {
+	buf := b
+
+	if len(buf) != SizeSendMessageAck {
+		return &errs.SizeError{
+			SubjectName:         "SendMessageAck",
+			SubjectActualSize:   len(buf),
+			SubjectExpectedSize: SizeSendMessageAck,
+		}
+	}
+
+	// Decode Flags
+	sendmsgack.Flags = flags.Flags(common.Uint8UnmarshalBinary(buf[:SizeFlags]))
 
 	return nil
 }

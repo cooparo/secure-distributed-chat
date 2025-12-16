@@ -9,8 +9,9 @@ import (
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
-func handleHeartbeat(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
+func handleHeartbeat(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries, evtchan chan<- PacketEvent) error {
 	logger.Get().Infof("Got heartbeat from %s", conn.RemoteAddr().String())
+	sendEvent(evtchan, PacketEventHeartbeatReceived)
 
 	return nil
 }

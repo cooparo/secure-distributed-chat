@@ -14,7 +14,7 @@ import (
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
-func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
+func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries, evtchan chan<- PacketEvent) error {
 	sigkexreqByte := make([]byte, netprotocol.SizeSignedKeyExchangeRequest)
 	if _, err := conn.Read(sigkexreqByte); err != nil {
 		return err
@@ -28,6 +28,8 @@ func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 	kexreq := sigkexreq.Inner
 
 	logger.Get().Infof("Key Exchange Request from %s to %s", kexreq.SendIDAddr.Base32(), kexreq.RecvIDAddr.Base32())
+
+	sendEvent(evtchan, PacketEventKeyExchangeRequestReceived)
 
 	if !mgr.Address.Equal(kexreq.RecvIDAddr) {
 		logger.Get().Debugf("Key Exchange Request is for %s, but we are %s", kexreq.RecvIDAddr.Base32(), mgr.Address.Base32())
@@ -151,14 +153,17 @@ func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 	if err != nil {
 		return err
 	}
+
 	if _, err := conn.Write(pkt); err != nil {
 		return err
 	}
 
+	sendEvent(evtchan, PacketEventKeyExchangeResponseSent)
+
 	return nil
 }
 
-func handleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
+func handleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries, evtchan chan<- PacketEvent) error {
 	sigkexrespByte := make([]byte, netprotocol.SizeSignedKeyExchangeResponse)
 	if _, err := conn.Read(sigkexrespByte); err != nil {
 		return err
@@ -173,7 +178,10 @@ func handleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.
 
 	logger.Get().Infof("Key Exchange Response from %s to %s", kexresp.SendIDAddr.Base32(), kexresp.RecvIDAddr.Base32())
 
+	sendEvent(evtchan, PacketEventKeyExchangeResponseReceived)
+
 	if !mgr.Address.Equal(kexresp.RecvIDAddr) {
+		sendEvent(evtchan, PacketEventKeyExchangeFailed)
 		return &InvalidRecvError{
 			SubjectName:         "KeyExchangeResponse",
 			SubjectActualRecv:   kexresp.RecvIDAddr,
@@ -184,16 +192,19 @@ func handleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.
 	sess, ok := mgr.Get(kexresp.SendIDAddr.Base32())
 
 	if !ok {
+		sendEvent(evtchan, PacketEventKeyExchangeFailed)
 		return &NoSessionError{PeerAddress: kexresp.SendIDAddr}
 	}
 
 	if sess.EphemeralExchangeKey == nil {
+		sendEvent(evtchan, PacketEventKeyExchangeFailed)
 		return &NoKeyExchangeError{PeerAddress: kexresp.SendIDAddr}
 	}
 
 	keybndl := sess.KeyBundle
 
 	if err := sigkexresp.Verify(keybndl.SigningKey); err != nil {
+		sendEvent(evtchan, PacketEventKeyExchangeFailed)
 		return err
 	}
 
@@ -203,12 +214,14 @@ func handleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.
 
 	staticSecret, err := privkeybndl.DiffieHellmanPrivateKey.ECDH(keybndl.DiffieHellmanKey)
 	if err != nil {
+		sendEvent(evtchan, PacketEventKeyExchangeFailed)
 		return err
 	}
 	secrets = append(secrets, staticSecret...)
 
 	ephemeralSecret, err := sess.EphemeralExchangeKey.ECDH(kexresp.EphemeralKey)
 	if err != nil {
+		sendEvent(evtchan, PacketEventKeyExchangeFailed)
 		return err
 	}
 	secrets = append(secrets, ephemeralSecret...)
@@ -217,11 +230,14 @@ func handleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.
 
 	ratchet, err := doubleratchet.New(sharedSecret[:], kexresp.RatchetKey)
 	if err != nil {
+		sendEvent(evtchan, PacketEventKeyExchangeFailed)
 		return err
 	}
 
 	sess.Ratchet = ratchet
 	sess.EphemeralExchangeKey = nil
+
+	sendEvent(evtchan, PacketEventKeyExchangeSuccess)
 
 	return nil
 }

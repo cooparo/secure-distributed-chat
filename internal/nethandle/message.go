@@ -12,7 +12,7 @@ import (
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
-func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
+func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries, evtchan chan<- PacketEvent) error {
 	msghdrByte := make([]byte, netprotocol.SizeMessageHeader)
 	if _, err := conn.Read(msghdrByte); err != nil {
 		return err
@@ -25,6 +25,8 @@ func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManag
 	}
 
 	logger.Get().Infof("Got Message from %s with DataLength %d", msghdr.SendIDAddr.Base32(), msghdr.DataLength)
+
+	sendEvent(evtchan, PacketEventMessageReceived)
 
 	sess, ok := mgr.Get(msghdr.SendIDAddr.Base32())
 	if !ok {

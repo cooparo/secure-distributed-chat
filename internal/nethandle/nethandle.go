@@ -11,6 +11,7 @@ import (
 
 	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
+	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 	"github.com/cooparo/secure-distributed-chat/pkg/netprotocol"
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
@@ -22,9 +23,11 @@ var packetTypeName = map[netprotocol.PacketType]string{
 	netprotocol.PacketTypeMessage:             "Message",
 	netprotocol.PacketTypeKeyExchangeRequest:  "Key Exchange Request",
 	netprotocol.PacketTypeKeyExchangeResponse: "Key Exchange Response",
+	netprotocol.PacketTypeDiscoveryRequest:    "Discovery Request",
+	netprotocol.PacketTypeDiscoveryResponse:   "Discovery Response",
 }
 
-type packetHandler func(context.Context, net.Conn, *session.SessionManager, *repository.Queries) error
+type packetHandler func(context.Context, net.Conn, *session.SessionManager, *repository.Queries, chan<- PacketEvent) error
 
 var packetTypeHandler = map[netprotocol.PacketType]packetHandler{
 	netprotocol.PacketTypeHeartbeat:           handleHeartbeat,
@@ -34,6 +37,27 @@ var packetTypeHandler = map[netprotocol.PacketType]packetHandler{
 	netprotocol.PacketTypeDiscoveryRequest:    handleDiscoveryRequest,
 	netprotocol.PacketTypeDiscoveryResponse:   handleDiscoveryResponse,
 }
+
+type PacketEvent uint8
+
+const (
+	PacketEventHeartbeatReceived PacketEvent = iota
+	PacketEventMessageReceived
+	PacketEventMessageSent
+	PacketEventKeyExchangeRequestReceived
+	PacketEventKeyExchangeRequestSent
+	PacketEventKeyExchangeResponseReceived
+	PacketEventKeyExchangeResponseSent
+	PacketEventKeyExchangeSuccess
+	PacketEventKeyExchangeFailed
+	PacketEventDiscoveryRequestReceived
+	PacketEventDiscoveryRequestSent
+	PacketEventDiscoveryResponseReceived
+	PacketEventDiscoveryResponseSent
+	PacketEventDiscoveryHit
+	PacketEventDiscoveryMiss
+	PacketEventError
+)
 
 func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr *session.SessionManager, query *repository.Queries) {
 	go func() {
@@ -55,12 +79,12 @@ func ServeListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, mgr
 				logger.Get().Warnf("Accept error: %s", err.Error())
 				continue
 			}
-			handleConn(ctx, conn, wg, mgr, query)
+			handleConn(ctx, conn, wg, mgr, query, nil)
 		}
 	}()
 }
 
-func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *session.SessionManager, query *repository.Queries) {
+func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *session.SessionManager, query *repository.Queries, evtchan chan<- PacketEvent) {
 	wg.Go(func() {
 		defer func() {
 			if err := conn.Close(); err != nil {
@@ -121,11 +145,31 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *ses
 				return
 			}
 
-			err = handler(ctx, conn, mgr, query)
+			err = handler(ctx, conn, mgr, query, evtchan)
 			if err != nil {
 				logger.Get().Warnf("Got error handling PacketType %s (%#x) from %s: %s", pktName, mainhdr.PacketType, conn.RemoteAddr().String(), err.Error())
 				return
 			}
 		}
 	})
+}
+
+func SendMessage(ctx context.Context, wg *sync.WaitGroup, mgr *session.SessionManager, query *repository.Queries, peer identity.IdentityAddress, message []byte) error {
+	//evtchan := make(chan PacketEvent)
+
+	// TODO: Check if connection is there and use it instead
+
+	// TODO: Discover
+
+	// TODO: KeyExchange
+
+	// TODO: SendMessage
+
+	return nil
+}
+
+func sendEvent(evtchan chan<- PacketEvent, evt PacketEvent) {
+	if evtchan != nil {
+		evtchan <- evt
+	}
 }

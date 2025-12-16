@@ -14,7 +14,7 @@ import (
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
-func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
+func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries, evtchan chan<- PacketEvent) error {
 	discreqhdrByte := make([]byte, netprotocol.SizeDiscoveryRequestHeader)
 	if _, err := conn.Read(discreqhdrByte); err != nil {
 		return err
@@ -27,6 +27,8 @@ func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.Ses
 	}
 
 	logger.Get().Infof("Got Discovery request from %s for %s", discreqhdr.SendIDAddr.Base32(), discreqhdr.LookupIDAddr.Base32())
+
+	sendEvent(evtchan, PacketEventDiscoveryRequestReceived)
 
 	sigkeybndl := discreqhdr.SignedKeyBundle
 	keybndl := sigkeybndl.Inner
@@ -250,10 +252,12 @@ func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.Ses
 		return err
 	}
 
+	sendEvent(evtchan, PacketEventDiscoveryResponseSent)
+
 	return nil
 }
 
-func handleDiscoveryResponse(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
+func handleDiscoveryResponse(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries, evtchan chan<- PacketEvent) error {
 	discresphdrByte := make([]byte, netprotocol.SizeDiscoveryResponseHeader)
 	if _, err := conn.Read(discresphdrByte); err != nil {
 		return err
@@ -266,6 +270,8 @@ func handleDiscoveryResponse(ctx context.Context, conn net.Conn, mgr *session.Se
 	}
 
 	logger.Get().Infof("Got Discovery response from %s", discresphdr.SendIDAddr.Base32())
+
+	sendEvent(evtchan, PacketEventDiscoveryResponseReceived)
 
 	logger.Get().Infof("Discovery Response has %d identities", discresphdr.IdentityCount)
 
@@ -342,8 +348,13 @@ func handleDiscoveryResponse(ctx context.Context, conn net.Conn, mgr *session.Se
 
 	if flags.Has(discresphdr.Flags, netprotocol.FlagDiscHit) {
 		logger.Get().Info("The Hit flag is set")
+
+		sendEvent(evtchan, PacketEventDiscoveryHit)
+
 		// TODO: First identity is the one we were looking for
 		// Check that it is correct and somehow mark that
+	} else {
+		sendEvent(evtchan, PacketEventDiscoveryMiss)
 	}
 
 	return nil

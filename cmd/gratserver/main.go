@@ -18,10 +18,10 @@ import (
 )
 
 var (
-	verbose bool
-	addr    string
-	port    uint
-	keyFile string
+	verbose   bool
+	ifaceName string
+	port      uint
+	keyFile   string
 )
 
 var rootCmd = &cobra.Command{
@@ -38,7 +38,7 @@ var rootCmd = &cobra.Command{
 		// WaitGroup semaphore for connection count
 		var wg sync.WaitGroup
 
-		var privKeyBundle identity.PrivateKeyBundle
+		privKeyBundle := &identity.PrivateKeyBundle{}
 		if err := privKeyBundle.Load(keyFile); err != nil {
 			logger.Get().Fatalf("Got error reading private key file: %s", err.Error())
 		}
@@ -60,10 +60,36 @@ var rootCmd = &cobra.Command{
 
 		logger.Get().Infof("Our address is %s", address.Base32())
 
-		// Session Manager
-		mgr := session.NewSessionManager(address, &privKeyBundle)
+		iface, err := net.InterfaceByName(ifaceName)
+		if err != nil {
+			logger.Get().Fatalf("Got error getting interface: %s", err.Error())
+		}
 
-		bindAddr := fmt.Sprintf("[%s]:%d", addr, port)
+		addrs, err := iface.Addrs()
+		if err != nil {
+			logger.Get().Fatalf("Got error getting address of interface")
+		}
+
+		// TODO: Make sure it is IPv6 somehow
+		// FIX: Can use a IPv4 address at the moment, which is funky
+		var ip net.IP
+		for _, addr := range addrs {
+			logger.Get().Debugf("%v", addr)
+			switch v := addr.(type) {
+			case *net.IPAddr:
+				ip = v.IP
+			case *net.IPNet:
+				ip = v.IP
+			}
+		}
+
+		// Session Manager
+		mgr, err := session.NewSessionManager(privKeyBundle, ip)
+		if err != nil {
+			logger.Get().Fatalf("Got error making session manager: %s", err.Error())
+		}
+
+		bindAddr := fmt.Sprintf("[%s]:%d", ip.String(), port)
 		logger.Get().Infof("Starting server on %s", bindAddr)
 		tcpLn, err := net.Listen("tcp", bindAddr)
 		if err != nil {
@@ -112,7 +138,7 @@ func main() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging")
-	rootCmd.Flags().StringVarP(&addr, "address", "a", "::", "Address to listen on")
+	rootCmd.Flags().StringVarP(&ifaceName, "interface", "i", "lo", "Interface to listen on")
 	rootCmd.Flags().UintVarP(&port, "port", "p", 1337, "Port to listen on")
 	rootCmd.Flags().StringVarP(&keyFile, "keyfile", "k", "./private.key", "Private key file")
 }

@@ -1,26 +1,54 @@
 package session
 
 import (
+	"net"
 	"sync"
+	"time"
 
+	"github.com/cooparo/secure-distributed-chat/pkg/common"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 )
 
 type SessionManager struct {
-	mu               sync.RWMutex
-	sessions         map[string]*Session
-	Address          identity.IdentityAddress
-	PrivateKeyBundle *identity.PrivateKeyBundle
+	mu                  sync.RWMutex
+	sessions            map[string]*Session
+	Address             identity.IdentityAddress
+	PrivateKeyBundle    *identity.PrivateKeyBundle
+	SignedKeyBundle     *identity.SignedKeyBundle
+	SignedNetworkUpdate *identity.SignedNetworkUpdate
 }
 
 // Make a new session manager.
 // Expects both address and privKeyBundle has been validated.
-func NewSessionManager(address identity.IdentityAddress, privKeyBundle *identity.PrivateKeyBundle) *SessionManager {
-	return &SessionManager{
-		sessions:         make(map[string]*Session),
-		Address:          address,
-		PrivateKeyBundle: privKeyBundle,
+func NewSessionManager(privKeyBundle *identity.PrivateKeyBundle, currentNetAddress net.IP) (*SessionManager, error) {
+	keybndl := privKeyBundle.Public()
+	address, err := keybndl.Address()
+	if err != nil {
+		return nil, err
 	}
+
+	sigkeybndl, err := keybndl.Sign(privKeyBundle.SigningPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	netupd := &identity.NetworkUpdate{
+		Timestamp:  common.Timestamp(time.Now().Unix()),
+		NetAddress: currentNetAddress.To16(),
+	}
+
+	signetupd, err := netupd.Sign(privKeyBundle.SigningPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return &SessionManager{
+		sessions:            make(map[string]*Session),
+		Address:             address,
+		PrivateKeyBundle:    privKeyBundle,
+		SignedKeyBundle:     sigkeybndl,
+		SignedNetworkUpdate: signetupd,
+	}, nil
 }
 
 func (m *SessionManager) Get(key string) (*Session, bool) {

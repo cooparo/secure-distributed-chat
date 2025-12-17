@@ -166,6 +166,7 @@ func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.Ses
 	}
 
 	// TODO: Maybe limit ourselves
+
 	// FIX: Will be weird if we dont have enough
 	// Will need more queries to get the count
 	// This should work fine for now

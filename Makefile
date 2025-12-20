@@ -9,6 +9,9 @@ all: $(CMDS)
 $(CMDS):
 	go build -buildmode=pie -trimpath -o $(BINDIR)/$@ ./cmd/$@
 
+test:
+	go test ./...
+
 .PHONY: clean
 clean:
 	rm -rf $(BINDIR)

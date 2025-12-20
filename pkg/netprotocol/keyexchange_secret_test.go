@@ -15,11 +15,11 @@ import (
 func TestKeyExchange_SharedSecretAligned_NoRatchet(t *testing.T) {
 	alicePriv, err := identity.GenerateIdentity()
 	if err != nil {
-		t.Fatalf("GenerateIdentity alice: %v", err)
+		t.Fatalf("GenerateIdentity alice: %s", err.Error())
 	}
 	bobPriv, err := identity.GenerateIdentity()
 	if err != nil {
-		t.Fatalf("GenerateIdentity bob: %v", err)
+		t.Fatalf("GenerateIdentity bob: %s", err.Error())
 	}
 
 	alicePub := alicePriv.Public()
@@ -27,11 +27,11 @@ func TestKeyExchange_SharedSecretAligned_NoRatchet(t *testing.T) {
 
 	aliceAddr, err := alicePub.Address()
 	if err != nil {
-		t.Fatalf("alice address: %v", err)
+		t.Fatalf("alice address: %s", err.Error())
 	}
 	bobAddr, err := bobPub.Address()
 	if err != nil {
-		t.Fatalf("bob address: %v", err)
+		t.Fatalf("bob address: %s", err.Error())
 	}
 
 	t.Logf("Alice Signing key: %#x", alicePub.SigningKey)
@@ -43,17 +43,17 @@ func TestKeyExchange_SharedSecretAligned_NoRatchet(t *testing.T) {
 	}
 	signedNetUpdate, err := netUpdate.Sign(alicePriv.SigningPrivateKey)
 	if err != nil {
-		t.Fatalf("sign network update: %v", err)
+		t.Fatalf("sign network update: %s", err.Error())
 	}
 
 	signedKeyBundle, err := alicePub.Sign(alicePriv.SigningPrivateKey)
 	if err != nil {
-		t.Fatalf("sign key bundle: %v", err)
+		t.Fatalf("sign key bundle: %s", err.Error())
 	}
 
 	aliceEphemeral, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
-		t.Fatalf("alice ephemeral: %v", err)
+		t.Fatalf("alice ephemeral: %s", err.Error())
 	}
 
 	req := &netprotocol.KeyExchangeRequest{
@@ -66,18 +66,18 @@ func TestKeyExchange_SharedSecretAligned_NoRatchet(t *testing.T) {
 
 	sigReq, err := req.Sign(alicePriv.SigningPrivateKey)
 	if err != nil {
-		t.Fatalf("sign request: %v", err)
+		t.Fatalf("sign request: %s", err.Error())
 	}
 
 	rawReq, err := sigReq.MarshalBinary()
 	if err != nil {
-		t.Fatalf("marshal signed request: %v", err)
+		t.Fatalf("marshal signed request: %s", err.Error())
 	}
 
 	// Bob receives request: and now parses + verifies it
 	gotSigReq := &netprotocol.SignedKeyExchangeRequest{}
 	if err := gotSigReq.UnmarshalBinary(rawReq); err != nil {
-		t.Fatalf("unmarshal signed request: %v", err)
+		t.Fatalf("unmarshal signed request: %s", err.Error())
 	}
 
 	gotReq := gotSigReq.Inner
@@ -87,29 +87,29 @@ func TestKeyExchange_SharedSecretAligned_NoRatchet(t *testing.T) {
 
 	// verify the key bundle
 	if err := gotReq.SignedKeyBundle.Verify(); err != nil {
-		t.Fatalf("verify signed key bundle: %v", err)
+		t.Fatalf("verify signed key bundle: %s", err.Error())
 	}
 	if err := gotReq.SignedNetworkUpdate.Verify(alicePub.SigningKey); err != nil {
-		t.Fatalf("verify signed network update: %v", err)
+		t.Fatalf("verify signed network update: %s", err.Error())
 	}
 	if err := gotSigReq.Verify(alicePub.SigningKey); err != nil {
-		t.Fatalf("verify signed request: %v", err)
+		t.Fatalf("verify signed request: %s", err.Error())
 	}
 
 	//
 	bobEphemeral, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
-		t.Fatalf("bob ephemeral: %v", err)
+		t.Fatalf("bob ephemeral: %s", err.Error())
 	}
 
 	staticSecretBob, err := bobPriv.DiffieHellmanPrivateKey.ECDH(alicePub.DiffieHellmanKey)
 	if err != nil {
-		t.Fatalf("bob static ECDH: %v", err)
+		t.Fatalf("bob static ECDH: %s", err.Error())
 	}
 
 	ephemeralSecretBob, err := bobEphemeral.ECDH(gotReq.EphemeralKey)
 	if err != nil {
-		t.Fatalf("bob ephemeral ECDH: %v", err)
+		t.Fatalf("bob ephemeral ECDH: %s", err.Error())
 	}
 
 	secretsBob := make([]byte, 0, len(staticSecretBob)+len(ephemeralSecretBob))
@@ -120,7 +120,7 @@ func TestKeyExchange_SharedSecretAligned_NoRatchet(t *testing.T) {
 	// A dummy ratchet key for Bob to include in his response
 	dummyRatchetPriv, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
-		t.Fatalf("dummy ratchet key: %v", err)
+		t.Fatalf("dummy ratchet key: %s", err.Error())
 	}
 
 	resp := &netprotocol.KeyExchangeResponse{
@@ -133,24 +133,24 @@ func TestKeyExchange_SharedSecretAligned_NoRatchet(t *testing.T) {
 	// Bob signs his response
 	sigResp, err := resp.Sign(bobPriv.SigningPrivateKey)
 	if err != nil {
-		t.Fatalf("sign response: %v", err)
+		t.Fatalf("sign response: %s", err.Error())
 	}
 
 	// Bob serializes his signed response
 	rawResp, err := sigResp.MarshalBinary()
 	if err != nil {
-		t.Fatalf("marshal signed response: %v", err)
+		t.Fatalf("marshal signed response: %s", err.Error())
 	}
 
 	// Alice receives response: verifies it and parses it
 	gotSigResp := &netprotocol.SignedKeyExchangeResponse{}
 	if err := gotSigResp.UnmarshalBinary(rawResp); err != nil {
-		t.Fatalf("unmarshal signed response: %v", err)
+		t.Fatalf("unmarshal signed response: %s", err.Error())
 	}
 
 	// Alice verifies Bob's signature
 	if err := gotSigResp.Verify(bobPub.SigningKey); err != nil {
-		t.Fatalf("verify signed response: %v", err)
+		t.Fatalf("verify signed response: %s", err.Error())
 	}
 
 	// Extract inner response
@@ -162,12 +162,12 @@ func TestKeyExchange_SharedSecretAligned_NoRatchet(t *testing.T) {
 	// Now Alice computes the shared secret : NOTE: no keybundle management here: 'NO DB'
 	staticSecretAlice, err := alicePriv.DiffieHellmanPrivateKey.ECDH(bobPub.DiffieHellmanKey)
 	if err != nil {
-		t.Fatalf("alice static ECDH: %v", err)
+		t.Fatalf("alice static ECDH: %s", err.Error())
 	}
 
 	ephemeralSecretAlice, err := aliceEphemeral.ECDH(gotResp.EphemeralKey)
 	if err != nil {
-		t.Fatalf("alice ephemeral ECDH: %v", err)
+		t.Fatalf("alice ephemeral ECDH: %s", err.Error())
 	}
 
 	secretsAlice := make([]byte, 0, len(staticSecretAlice)+len(ephemeralSecretAlice))

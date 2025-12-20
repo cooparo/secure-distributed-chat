@@ -10,12 +10,12 @@ func TestNewWithoutTheirKey(t *testing.T) {
 	sharedSecret := make([]byte, 32)
 	_, err := rand.Read(sharedSecret)
 	if err != nil {
-		t.Errorf("Failed to generate shared secret: %v", err)
+		t.Errorf("Failed to generate shared secret: %s", err.Error())
 	}
 
 	ratchet, err := New(sharedSecret, nil)
 	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
+		t.Errorf("Unexpected error: %s", err.Error())
 	}
 
 	if ratchet.OurKey == nil {
@@ -44,19 +44,19 @@ func TestNewWithTheirKey(t *testing.T) {
 	sharedSecret := make([]byte, 32)
 	_, err := rand.Read(sharedSecret)
 	if err != nil {
-		t.Errorf("Failed to generate shared secret: %v", err)
+		t.Errorf("Failed to generate shared secret: %s", err.Error())
 	}
 
 	theirPrivateKey, err := curve.GenerateKey(rand.Reader)
 	if err != nil {
-		t.Errorf("Failed to generate their key: %v", err)
+		t.Errorf("Failed to generate their key: %s", err.Error())
 	}
 
 	theirPublicKey := theirPrivateKey.PublicKey()
 
 	ratchet, err := New(sharedSecret, theirPublicKey)
 	if err != nil {
-		t.Errorf("New returned error: %v", err)
+		t.Errorf("New returned error: %s", err.Error())
 	}
 
 	if ratchet.OurKey == nil {
@@ -90,25 +90,25 @@ func TestUpdateInitializesChains(t *testing.T) {
 	sharedSecret := make([]byte, 32)
 	_, err := rand.Read(sharedSecret)
 	if err != nil {
-		t.Errorf("Unexpectedy behavior: failed to generate shared secret: %v", err)
+		t.Errorf("Unexpectedy behavior: failed to generate shared secret: %s", err.Error())
 	}
 
 	theirPriv, err := curve.GenerateKey(rand.Reader)
 	if err != nil {
-		t.Errorf("Unexpectedy behavior: failed to generate their key: %v", err)
+		t.Errorf("Unexpectedy behavior: failed to generate their key: %s", err.Error())
 	}
 	theirPub := theirPriv.PublicKey()
 
 	ratchet, err := New(sharedSecret, nil)
 	if err != nil {
-		t.Errorf("Unexpectedy behavior: failed to create ratchet: %v", err)
+		t.Errorf("Unexpectedy behavior: failed to create ratchet: %s", err.Error())
 	}
 
 	oldOurKey := ratchet.OurKey
 
 	err = ratchet.Update(theirPub)
 	if err != nil {
-		t.Errorf("Unexpectedy behavior: update returned error: %v", err)
+		t.Errorf("Unexpectedy behavior: update returned error: %s", err.Error())
 	}
 
 	if ratchet.OurKey == nil {
@@ -144,12 +144,12 @@ func TestEncryptWithoutSendChainFails(t *testing.T) {
 	sharedSecret := make([]byte, 32)
 	_, err := rand.Read(sharedSecret)
 	if err != nil {
-		t.Errorf("Unexpectedy behavior: failed to generate shared secret: %v", err)
+		t.Errorf("Unexpectedy behavior: failed to generate shared secret: %s", err.Error())
 	}
 
 	ratchet, err := New(sharedSecret, nil)
 	if err != nil {
-		t.Errorf("Unexpectedy behavior: failed to create ratchet: %v", err)
+		t.Errorf("Unexpectedy behavior: failed to create ratchet: %s", err.Error())
 	}
 
 	_, err = ratchet.Encrypt([]byte("hello"), nil)
@@ -162,17 +162,17 @@ func TestEncryptDecryptRoundTrip(t *testing.T) {
 	sharedSecret := make([]byte, 32)
 	_, err := rand.Read(sharedSecret)
 	if err != nil {
-		t.Errorf("Unexpectedy behavior: failed to generate shared secret: %v", err)
+		t.Errorf("Unexpectedy behavior: failed to generate shared secret: %s", err.Error())
 	}
 
 	bob, err := New(sharedSecret, nil)
 	if err != nil {
-		t.Errorf("Unexpectedy behavior: failed to create Bob ratchet: %v", err)
+		t.Errorf("Unexpectedy behavior: failed to create Bob ratchet: %s", err.Error())
 	}
 
 	alice, err := New(sharedSecret, bob.OurKey.PublicKey())
 	if err != nil {
-		t.Errorf("Unexpectedy behavior: failed to create Alice ratchet: %v", err)
+		t.Errorf("Unexpectedy behavior: failed to create Alice ratchet: %s", err.Error())
 	}
 
 	plaintext := []byte("hello ratchet")
@@ -180,7 +180,7 @@ func TestEncryptDecryptRoundTrip(t *testing.T) {
 
 	ciphertext, err := alice.Encrypt(plaintext, ad)
 	if err != nil {
-		t.Errorf("Unexpectedy behavior: encrypt failed: %v", err)
+		t.Errorf("Unexpectedy behavior: encrypt failed: %s", err.Error())
 	}
 
 	decrypted, err := bob.Decrypt(alice.OurKey.PublicKey(), ciphertext, ad)

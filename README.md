@@ -1,4 +1,4 @@
-# grat
+# GRAT (Gossip-based Ratchet Authenticated Transport)
 
 ## Prerequisites
 - [go](https://go.dev/)

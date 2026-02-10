@@ -22,5 +22,9 @@
 !internal/database/migrations/*.sql
 !internal/database/queries/*.sql
 
+# Nix 
+!*.nix
+!flake.lock
+
 # ...even if they are in subdirectories
 !*/

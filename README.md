@@ -65,10 +65,12 @@ bin/gratcli fetch -p <PEER_ADDRESS>
 ### 5. Interactive TUI
 
 ```sh
-bin/gratcli tui -k private.key
+bin/gratcli tui
 ```
 
-Use `Tab` to switch between the contacts pane and chat pane, arrow keys to select a contact, and `Enter` to send a message.
+If no identity key exists at the default path (`./private.key`), the TUI will automatically generate one on first launch.
+
+Use `Tab` to switch between the contacts pane and chat pane, arrow keys to select a contact, and `Enter` to send a message. Your own address is filtered from the contacts list.
 
 ## Docker Compose (Two-Node Test Environment)
 
@@ -101,13 +103,15 @@ docker compose exec node2 sqlite3 /data/grat/db \
 
 ### Send and receive messages
 
+The key is symlinked to the default path inside the containers, so `-k` is not needed:
+
 ```sh
 # Get addresses
-docker compose exec node1 gratcli identity -k /data/private.key
-docker compose exec node2 gratcli identity -k /data/private.key
+docker compose exec node1 gratcli identity
+docker compose exec node2 gratcli identity
 
 # Send from node1 to node2
-docker compose exec node1 gratcli message -k /data/private.key -r <NODE2_ADDR> -m "hello from node1"
+docker compose exec node1 gratcli message -r <NODE2_ADDR> -m "hello from node1"
 
 # Fetch on node2
 docker compose exec node2 gratcli fetch -p <NODE1_ADDR>
@@ -116,7 +120,7 @@ docker compose exec node2 gratcli fetch -p <NODE1_ADDR>
 ### Use the TUI inside Docker
 
 ```sh
-docker compose exec node1 gratcli tui -k /data/private.key
+docker compose exec node1 gratcli tui
 ```
 
 ### Tear down

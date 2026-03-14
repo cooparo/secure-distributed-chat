@@ -11,33 +11,46 @@ import (
 
 	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
+	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 	"github.com/cooparo/secure-distributed-chat/pkg/ipcprotocol"
+	"github.com/cooparo/secure-distributed-chat/pkg/session"
 )
 
 const connTimeout = 5 * time.Second
 
-var packetTypeName = map[ipcprotocol.CommandType]string{
-	ipcprotocol.CommandTypeMessageRequest:  "Message Request",
-	ipcprotocol.CommandTypeMessageResponse: "Message Response",
-	ipcprotocol.CommandTypeSendMessage:     "Send Message",
-	ipcprotocol.CommandTypeSendMessageAck:  "Send Message ACK",
+type ServerState struct {
+	Query                  *repository.Queries
+	Mgr                    *session.SessionManager
+	PrivKeyBundle          *identity.PrivateKeyBundle
+	OurSignedKeyBundle     *identity.SignedKeyBundle
+	OurSignedNetworkUpdate *identity.SignedNetworkUpdate
 }
 
-type ipcServerpacketHandler func(context.Context, net.Conn, *repository.Queries) error
+var packetTypeName = map[ipcprotocol.CommandType]string{
+	ipcprotocol.CommandTypeMessageRequest:      "Message Request",
+	ipcprotocol.CommandTypeMessageResponse:     "Message Response",
+	ipcprotocol.CommandTypeSendMessage:         "Send Message",
+	ipcprotocol.CommandTypeSendMessageAck:      "Send Message ACK",
+	ipcprotocol.CommandTypeListContacts:        "List Contacts",
+	ipcprotocol.CommandTypeListContactsResponse: "List Contacts Response",
+}
+
+type ipcServerpacketHandler func(context.Context, net.Conn, *ServerState) error
 
 var packetServerHandler = map[ipcprotocol.CommandType]ipcServerpacketHandler{
 	ipcprotocol.CommandTypeMessageRequest: handleServerMessageRequest,
 	ipcprotocol.CommandTypeSendMessage:    handleServerSendMessage,
+	ipcprotocol.CommandTypeListContacts:   handleServerListContacts,
 }
 
 type ipcClientPacketHandler func(context.Context, net.Conn) error
 
 var packetClientHandler = map[ipcprotocol.CommandType]ipcClientPacketHandler{
-	ipcprotocol.CommandTypeMessageResponse: handleClientMessageResponse,
-	//ipcprotocol.CommandTypeSendMessageAck:  handleClientMessageRqust,
+	ipcprotocol.CommandTypeMessageResponse:      handleClientMessageResponse,
+	ipcprotocol.CommandTypeListContactsResponse: handleClientListContactsResponse,
 }
 
-func ServerIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, query *repository.Queries) {
+func ServerIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup, state *ServerState) {
 	go func() {
 		<-ctx.Done()
 		if err := ln.Close(); err != nil {
@@ -68,7 +81,7 @@ func ServerIpcListener(ctx context.Context, ln net.Listener, wg *sync.WaitGroup,
 					}
 				}()
 
-				handleServerConn(ctx, c, query)
+				handleServerConn(ctx, c, state)
 			}(conn)
 		}
 	}()
@@ -152,13 +165,7 @@ func handleConnClient(ctx context.Context, conn net.Conn) {
 
 }
 
-func handleServerConn(ctx context.Context, conn net.Conn, query *repository.Queries) {
-	defer func() {
-		if err := conn.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
+func handleServerConn(ctx context.Context, conn net.Conn, state *ServerState) {
 	logger.Get().Infof("Got connection from %s", conn.RemoteAddr().String())
 
 	for {
@@ -212,7 +219,7 @@ func handleServerConn(ctx context.Context, conn net.Conn, query *repository.Quer
 			return
 		}
 
-		err = handler(ctx, conn, query)
+		err = handler(ctx, conn, state)
 		if err != nil {
 			logger.Get().Warnf("Got error handling PacketType %s (%#x) error is: %s", pktName, mainhdr.CommandType, err.Error())
 			return

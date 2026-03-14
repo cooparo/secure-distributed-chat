@@ -193,11 +193,12 @@ func (signetupd *SignedNetworkUpdate) Encode() (string, error) {
 func (signetupd *SignedNetworkUpdate) Decode(s string) error {
 	encoding := base64.StdEncoding
 	dst := make([]byte, encoding.DecodedLen(len(s)))
-	if _, err := encoding.Decode(dst, []byte(s)); err != nil {
+	n, err := encoding.Decode(dst, []byte(s))
+	if err != nil {
 		return err
 	}
 
-	if err := signetupd.UnmarshalBinary(dst); err != nil {
+	if err := signetupd.UnmarshalBinary(dst[:n]); err != nil {
 		return err
 	}
 

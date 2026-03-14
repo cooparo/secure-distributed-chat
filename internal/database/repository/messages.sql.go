@@ -17,10 +17,10 @@ INSERT INTO messages(
 	contents
 )
 SELECT
-	(SELECT id FROM identities WHERE identities.address = ?3),
-	(SELECT id FROM identities WHERE identities.address = ?4),
-	?,
-	?
+	(SELECT id FROM identities WHERE identities.address = ?1),
+	(SELECT id FROM identities WHERE identities.address = ?2),
+	?3,
+	?4
 `
 
 type AddMessageParams struct {

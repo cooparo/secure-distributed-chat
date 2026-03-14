@@ -8,8 +8,8 @@ INSERT INTO messages(
 SELECT
 	(SELECT id FROM identities WHERE identities.address = sqlc.arg(sender_address)),
 	(SELECT id FROM identities WHERE identities.address = sqlc.arg(receiver_address)),
-	?,
-	?;
+	sqlc.arg(time),
+	sqlc.arg(contents);
 
 -- name: GetMessages :many
 SELECT

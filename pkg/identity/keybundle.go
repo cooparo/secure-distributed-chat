@@ -355,11 +355,12 @@ func (sigkeybndl *SignedKeyBundle) Encode() (string, error) {
 func (sigkeybndl *SignedKeyBundle) Decode(s string) error {
 	encoding := base64.StdEncoding
 	dst := make([]byte, encoding.DecodedLen(len(s)))
-	if _, err := encoding.Decode(dst, []byte(s)); err != nil {
+	n, err := encoding.Decode(dst, []byte(s))
+	if err != nil {
 		return err
 	}
 
-	if err := sigkeybndl.UnmarshalBinary(dst); err != nil {
+	if err := sigkeybndl.UnmarshalBinary(dst[:n]); err != nil {
 		return err
 	}
 

@@ -22,7 +22,7 @@ buildGoModule {
   ];
 
   src = ../.;
-  vendorHash = "sha256-H1CtrvDwkUSZbIGRWmQKup0ceoDp+mAXYA7hwyrvUmI=";
+  vendorHash = "sha256-xtdp8kFpYur5tuIr6xbuB2joqrvTnpIirBMjOzR7DWY=";
 
   nativeBuildInputs = [
     go

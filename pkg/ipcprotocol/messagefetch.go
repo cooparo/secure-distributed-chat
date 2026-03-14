@@ -76,11 +76,11 @@ func (msgresphdr *MessageResponseHeader) MarshalBinary() ([]byte, error) {
 func (msgresphdr *MessageResponseHeader) UnmarshalBinary(b []byte) error {
 	buf := b
 
-	if len(buf) != SizeMessageHeader {
+	if len(buf) != SizeMessageResponseHeader {
 		return &errs.SizeError{
 			SubjectName:         "MessageResponseHeader",
 			SubjectActualSize:   len(buf),
-			SubjectExpectedSize: SizeMessageHeader,
+			SubjectExpectedSize: SizeMessageResponseHeader,
 		}
 	}
 

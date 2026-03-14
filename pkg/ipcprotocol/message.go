@@ -135,7 +135,7 @@ func (msg *Message) UnmarshalBinary(b []byte) error {
 		return &errs.MinSizeError{
 			SubjectName:         "Message",
 			SubjectActualSize:   len(buf),
-			SubjectExpectedSize: SizeMessageResponseHeader,
+			SubjectExpectedSize: SizeMessageHeader,
 		}
 	}
 
@@ -148,7 +148,7 @@ func (msg *Message) UnmarshalBinary(b []byte) error {
 	}
 	msg.Header = msghdr
 
-	buf = buf[SizeMessageResponseHeader:]
+	buf = buf[SizeMessageHeader:]
 
 	if len(buf) != int(msghdr.MessageLength) {
 		return &errs.SizeError{

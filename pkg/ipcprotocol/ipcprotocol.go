@@ -17,6 +17,8 @@ const (
 	CommandTypeSendMessage
 	CommandTypeSendMessageAck
 	CommandTypeSendMessageNac
+	CommandTypeListContacts
+	CommandTypeListContactsResponse
 )
 
 type MainHeader struct {

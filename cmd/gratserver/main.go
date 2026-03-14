@@ -7,21 +7,25 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/cooparo/secure-distributed-chat/internal/database"
+	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
 	"github.com/cooparo/secure-distributed-chat/internal/ipchandle"
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/internal/nethandle"
+	"github.com/cooparo/secure-distributed-chat/pkg/common"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 	"github.com/cooparo/secure-distributed-chat/pkg/session"
 	"github.com/spf13/cobra"
 )
 
 var (
-	verbose bool
-	addr    string
-	port    uint
-	keyFile string
+	verbose    bool
+	addr       string
+	port       uint
+	keyFile    string
+	externalIP string
 )
 
 var rootCmd = &cobra.Command{
@@ -63,6 +67,57 @@ var rootCmd = &cobra.Command{
 		// Session Manager
 		mgr := session.NewSessionManager(address, &privKeyBundle)
 
+		// Build our SignedKeyBundle
+		keybndl := privKeyBundle.Public()
+		sigkeybndl, err := keybndl.Sign(privKeyBundle.SigningPrivateKey)
+		if err != nil {
+			logger.Get().Fatalf("Got error signing key bundle: %s", err.Error())
+		}
+
+		// Build our SignedNetworkUpdate
+		extIP := net.ParseIP(externalIP)
+		if extIP == nil {
+			extIP = net.IPv6loopback
+		}
+		extIP = extIP.To16()
+
+		netupd := &identity.NetworkUpdate{
+			Timestamp:  common.Timestamp(time.Now().Unix()),
+			NetAddress: extIP,
+		}
+		signetupd, err := netupd.Sign(privKeyBundle.SigningPrivateKey)
+		if err != nil {
+			logger.Get().Fatalf("Got error signing network update: %s", err.Error())
+		}
+
+		// Insert our own identity into DB (needed for AddMessage query)
+		sigkeybndlEncoded, err := sigkeybndl.Encode()
+		if err != nil {
+			logger.Get().Fatalf("Got error encoding key bundle: %s", err.Error())
+		}
+		signetupdEncoded, err := signetupd.Encode()
+		if err != nil {
+			logger.Get().Fatalf("Got error encoding network update: %s", err.Error())
+		}
+		err = query.AddIdentity(ctx, repository.AddIdentityParams{
+			Address:           address.Base32(),
+			KeyBundle:         sigkeybndlEncoded,
+			NetAddrBundleTime: int64(netupd.Timestamp),
+			NetAddrBundle:     signetupdEncoded,
+		})
+		if err != nil {
+			// May already exist, just log
+			logger.Get().Warnf("DB: AddIdentity for self: %s", err.Error())
+		}
+
+		state := &ipchandle.ServerState{
+			Query:                  query,
+			Mgr:                    mgr,
+			PrivKeyBundle:          &privKeyBundle,
+			OurSignedKeyBundle:     sigkeybndl,
+			OurSignedNetworkUpdate: signetupd,
+		}
+
 		bindAddr := fmt.Sprintf("[%s]:%d", addr, port)
 		logger.Get().Infof("Starting server on %s", bindAddr)
 		tcpLn, err := net.Listen("tcp", bindAddr)
@@ -85,7 +140,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		logger.Get().Infof("Starting server on socket %s", sp)
-		ipchandle.ServerIpcListener(ctx, sockLn, &wg, query)
+		ipchandle.ServerIpcListener(ctx, sockLn, &wg, state)
 
 		// Wait for shutdown
 		<-ctx.Done()
@@ -115,4 +170,5 @@ func init() {
 	rootCmd.Flags().StringVarP(&addr, "address", "a", "::", "Address to listen on")
 	rootCmd.Flags().UintVarP(&port, "port", "p", 1337, "Port to listen on")
 	rootCmd.Flags().StringVarP(&keyFile, "keyfile", "k", "./private.key", "Private key file")
+	rootCmd.Flags().StringVarP(&externalIP, "external-ip", "e", "::1", "External IP address for network updates")
 }

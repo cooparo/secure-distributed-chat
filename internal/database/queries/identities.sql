@@ -33,3 +33,8 @@ ORDER BY RANDOM() LIMIT 1;
 SELECT address, key_bundle, net_addr_bundle_time, net_addr_bundle
 FROM identities
 ORDER BY RANDOM() LIMIT ?;
+
+-- name: GetAllIdentities :many
+SELECT address
+FROM identities
+ORDER BY address ASC;

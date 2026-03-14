@@ -44,6 +44,35 @@ func (q *Queries) DeleteIdentity(ctx context.Context, address string) error {
 	return err
 }
 
+const getAllIdentities = `-- name: GetAllIdentities :many
+SELECT address
+FROM identities
+ORDER BY address ASC
+`
+
+func (q *Queries) GetAllIdentities(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getAllIdentities)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var address string
+		if err := rows.Scan(&address); err != nil {
+			return nil, err
+		}
+		items = append(items, address)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getIdentity = `-- name: GetIdentity :one
 SELECT key_bundle, net_addr_bundle_time, net_addr_bundle
 FROM identities

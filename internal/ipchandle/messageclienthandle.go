@@ -27,7 +27,7 @@ func handleClientMessageResponse(ctx context.Context, conn net.Conn) error {
 		msg := &ipcprotocol.Message{}
 
 		msghdrByte := make([]byte, ipcprotocol.SizeMessageHeader)
-		if _, err := conn.Read(msgresphdrByte); err != nil {
+		if _, err := conn.Read(msghdrByte); err != nil {
 			return err
 		}
 

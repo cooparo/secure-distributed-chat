@@ -27,6 +27,7 @@ func init() {
 	rootCmd.AddCommand(identityCmd)
 	rootCmd.AddCommand(messageCmd)
 	rootCmd.AddCommand(fetchCmd)
+	rootCmd.AddCommand(tuiCmd)
 }
 
 func connect() (net.Conn, error) {

@@ -1,0 +1,32 @@
+services:
+  node1:
+    build: .
+    environment:
+      - EXTERNAL_IP=node1
+      - LISTEN_PORT=1337
+    ports:
+      - "1337:1337"
+    volumes:
+      - node1-data:/data
+    networks:
+      - gratnet
+
+  node2:
+    build: .
+    environment:
+      - EXTERNAL_IP=node2
+      - LISTEN_PORT=1337
+    ports:
+      - "1338:1337"
+    volumes:
+      - node2-data:/data
+    networks:
+      - gratnet
+
+volumes:
+  node1-data:
+  node2-data:
+
+networks:
+  gratnet:
+    driver: bridge

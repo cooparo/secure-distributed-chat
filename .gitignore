@@ -22,7 +22,13 @@
 !internal/database/migrations/*.sql
 !internal/database/queries/*.sql
 
-# Nix 
+# Docker
+!Dockerfile
+!docker-compose.yml
+!docker-entrypoint.sh
+!docker-compose-test.sh
+
+# Nix
 !*.nix
 !flake.lock
 

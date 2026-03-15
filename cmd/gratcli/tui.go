@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
@@ -51,12 +52,19 @@ func startServer(keyFile string) (*os.Process, error) {
 		return nil, fmt.Errorf("cannot find gratserver: %w", err)
 	}
 
-	cmd := exec.Command(bin, "-k", keyFile)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+	var outputBuf bytes.Buffer
+	cmd := exec.Command(bin, "-k", keyFile, "-a", "::1", "-p", "0")
+	cmd.Stdout = &outputBuf
+	cmd.Stderr = &outputBuf
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start gratserver: %w", err)
 	}
+
+	// Channel to detect early exit
+	exited := make(chan error, 1)
+	go func() {
+		exited <- cmd.Wait()
+	}()
 
 	// Wait for socket to appear
 	sp, err := ipchandle.DefaultSocketPath()
@@ -67,8 +75,13 @@ func startServer(keyFile string) (*os.Process, error) {
 
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("unix", sp, 200*time.Millisecond)
-		if err == nil {
+		select {
+		case err := <-exited:
+			return nil, fmt.Errorf("gratserver exited early (err=%v): %s", err, outputBuf.String())
+		default:
+		}
+		conn, dialErr := net.DialTimeout("unix", sp, 200*time.Millisecond)
+		if dialErr == nil {
 			conn.Close()
 			return cmd.Process, nil
 		}
@@ -76,7 +89,7 @@ func startServer(keyFile string) (*os.Process, error) {
 	}
 
 	cmd.Process.Kill()
-	return nil, fmt.Errorf("gratserver did not become ready within 5s")
+	return nil, fmt.Errorf("gratserver did not become ready within 5s: %s", outputBuf.String())
 }
 
 var tuiCmd = &cobra.Command{
@@ -123,7 +136,9 @@ var tuiCmd = &cobra.Command{
 			}
 			defer func() {
 				serverProc.Signal(os.Interrupt)
-				serverProc.Wait()
+				// Wait briefly for graceful shutdown, then kill
+				time.Sleep(500 * time.Millisecond)
+				serverProc.Kill()
 			}()
 		}
 

@@ -15,6 +15,10 @@ INSERT INTO identities (
 ) VALUES (
 	?, ?, ?, ?
 )
+ON CONFLICT(address) DO UPDATE SET
+	key_bundle = excluded.key_bundle,
+	net_addr_bundle_time = excluded.net_addr_bundle_time,
+	net_addr_bundle = excluded.net_addr_bundle
 `
 
 type AddIdentityParams struct {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io"
 	"net"
 
 	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
@@ -16,7 +17,7 @@ import (
 
 func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
 	discreqhdrByte := make([]byte, netprotocol.SizeDiscoveryRequestHeader)
-	if _, err := conn.Read(discreqhdrByte); err != nil {
+	if _, err := io.ReadFull(conn, discreqhdrByte); err != nil {
 		return err
 	}
 	logger.Get().Debugf("Nethandle DiscoveryRequestHeader raw read: %#x", discreqhdrByte)
@@ -81,7 +82,7 @@ func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.Ses
 
 	sizeAdditionalIdentities := int(discreqhdr.IdentityCount) * netprotocol.SizeFullIdentity
 	addIdBuf := make([]byte, sizeAdditionalIdentities)
-	if _, err := conn.Read(addIdBuf); err != nil {
+	if _, err := io.ReadFull(conn, addIdBuf); err != nil {
 		return err
 	}
 	logger.Get().Debugf("Additional Identities from %s is %#x", discreqhdr.SendIDAddr.Base32(), addIdBuf)
@@ -254,7 +255,7 @@ func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.Ses
 
 func handleDiscoveryResponse(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
 	discresphdrByte := make([]byte, netprotocol.SizeDiscoveryResponseHeader)
-	if _, err := conn.Read(discresphdrByte); err != nil {
+	if _, err := io.ReadFull(conn, discresphdrByte); err != nil {
 		return err
 	}
 	logger.Get().Debugf("Nethandle DiscoveryRequestHeader raw read: %#x", discresphdrByte)
@@ -270,7 +271,7 @@ func handleDiscoveryResponse(ctx context.Context, conn net.Conn, mgr *session.Se
 
 	sizeIdentities := int(discresphdr.IdentityCount) * netprotocol.SizeFullIdentity
 	idBuf := make([]byte, sizeIdentities)
-	if _, err := conn.Read(idBuf); err != nil {
+	if _, err := io.ReadFull(conn, idBuf); err != nil {
 		return err
 	}
 	logger.Get().Debugf("Identities from %s is %#x", discresphdr.SendIDAddr.Base32(), idBuf)

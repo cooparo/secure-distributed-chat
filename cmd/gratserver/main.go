@@ -77,6 +77,13 @@ var rootCmd = &cobra.Command{
 		// Build our SignedNetworkUpdate
 		extIP := net.ParseIP(externalIP)
 		if extIP == nil {
+			// Try resolving as hostname
+			addrs, err := net.LookupHost(externalIP)
+			if err == nil && len(addrs) > 0 {
+				extIP = net.ParseIP(addrs[0])
+			}
+		}
+		if extIP == nil {
 			extIP = net.IPv6loopback
 		}
 		extIP = extIP.To16()
@@ -106,8 +113,7 @@ var rootCmd = &cobra.Command{
 			NetAddrBundle:     signetupdEncoded,
 		})
 		if err != nil {
-			// May already exist, just log
-			logger.Get().Warnf("DB: AddIdentity for self: %s", err.Error())
+			logger.Get().Fatalf("DB: AddIdentity for self: %s", err.Error())
 		}
 
 		state := &ipchandle.ServerState{

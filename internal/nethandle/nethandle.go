@@ -83,7 +83,7 @@ func handleConn(ctx context.Context, conn net.Conn, wg *sync.WaitGroup, mgr *ses
 				return
 			}
 			mainhdrByte := make([]byte, netprotocol.SizeMainHeader)
-			_, err := conn.Read(mainhdrByte)
+			_, err := io.ReadFull(conn, mainhdrByte)
 			if err != nil {
 				// Timeout
 				if errors.Is(err, os.ErrDeadlineExceeded) {

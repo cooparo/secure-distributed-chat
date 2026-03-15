@@ -2,6 +2,7 @@ package nethandle
 
 import (
 	"context"
+	"io"
 	"net"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 
 func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
 	msghdrByte := make([]byte, netprotocol.SizeMessageHeader)
-	if _, err := conn.Read(msghdrByte); err != nil {
+	if _, err := io.ReadFull(conn, msghdrByte); err != nil {
 		return err
 	}
 	logger.Get().Debugf("Nethandle MessageHeader raw read: %#x", msghdrByte)
@@ -38,7 +39,7 @@ func handleMessage(ctx context.Context, conn net.Conn, mgr *session.SessionManag
 	}
 
 	data := make([]byte, msghdr.DataLength)
-	if _, err := conn.Read(data); err != nil {
+	if _, err := io.ReadFull(conn, data); err != nil {
 		return err
 	}
 	logger.Get().Debugf("Message data from %s is: %#x", msghdr.SendIDAddr.Base32(), data)

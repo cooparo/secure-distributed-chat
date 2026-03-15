@@ -5,6 +5,7 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 	"crypto/sha3"
+	"io"
 	"net"
 
 	"github.com/cooparo/secure-distributed-chat/internal/database/repository"
@@ -16,7 +17,7 @@ import (
 
 func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
 	sigkexreqByte := make([]byte, netprotocol.SizeSignedKeyExchangeRequest)
-	if _, err := conn.Read(sigkexreqByte); err != nil {
+	if _, err := io.ReadFull(conn, sigkexreqByte); err != nil {
 		return err
 	}
 	logger.Get().Debugf("Nethandle SignedKeyExchange raw read: %#x", sigkexreqByte)
@@ -160,7 +161,7 @@ func handleKeyExchangeRequest(ctx context.Context, conn net.Conn, mgr *session.S
 
 func handleKeyExchangeResponse(ctx context.Context, conn net.Conn, mgr *session.SessionManager, query *repository.Queries) error {
 	sigkexrespByte := make([]byte, netprotocol.SizeSignedKeyExchangeResponse)
-	if _, err := conn.Read(sigkexrespByte); err != nil {
+	if _, err := io.ReadFull(conn, sigkexrespByte); err != nil {
 		return err
 	}
 	logger.Get().Debugf("Nethandle SignedKeyExchangeResponse raw read: %#x\n", sigkexrespByte)

@@ -1,145 +1,71 @@
-# GRAT (Gossip-based Ratchet Authenticated Transport)
+# GRAT
 
-A secure, distributed peer-to-peer chat system written in Go. Messages are encrypted end-to-end using the Signal Double Ratchet protocol with X25519 key exchange.
+Peer-to-peer encrypted chat. Messages are end-to-end encrypted using the Signal Double Ratchet protocol with X25519 key exchange. No servers, no accounts — just keys.
 
-## Prerequisites
-
-- [Go](https://go.dev/) 1.25+
-- [GNU Make](https://www.gnu.org/software/make/)
-
-Or alternatively:
-
-- [Nix](https://nixos.org/) (for reproducible builds and dev shell)
-
-## Installation
-
-### Make
+## Quick start
 
 ```sh
-git clone https://github.com/cooparo/secure-distributed-chat && \
-cd secure-distributed-chat && \
-make
+nix run .#gratcli -- tui
 ```
 
-Binaries are placed in `bin/`.
+This builds and launches the interactive TUI. If no identity exists yet, one is generated automatically on first launch.
 
-### Nix
+## Nix setup
+
+The project is a Nix flake. You can build or run everything directly without installing Go:
 
 ```sh
-nix build
-# Binaries in ./result/bin/
-
-# Or run directly:
-nix run .#gratserver
-nix run .#gratcli
+nix build                # Build both binaries to ./result/bin/
+nix run .#gratserver     # Run the server daemon
+nix run .#gratcli        # Run the CLI
+nix develop              # Dev shell with Go, sqlc, golangci-lint
 ```
 
-## Usage
-
-### 1. Generate an identity
+If you don't use Nix, `make` works too (requires Go 1.25+):
 
 ```sh
-bin/gratcli identity -g -k private.key
+make          # Binaries go to bin/
+make test     # Run all tests
 ```
 
-### 2. Start the server
+## Demo
 
-```sh
-bin/gratserver -k private.key -v
-```
-
-The server listens on `[::]:1337` for peer connections and on a Unix socket for local CLI commands.
-
-### 3. Send messages
-
-```sh
-bin/gratcli message -k private.key -r <PEER_ADDRESS> -m "hello"
-```
-
-### 4. Fetch messages
-
-```sh
-bin/gratcli fetch -p <PEER_ADDRESS>
-```
-
-### 5. Interactive TUI
-
-```sh
-bin/gratcli tui
-```
-
-If no identity key exists at the default path (`./private.key`), the TUI will automatically generate one on first launch.
-
-Use `Tab` to switch between the contacts pane and chat pane, arrow keys to select a contact, and `Enter` to send a message. Your own address is filtered from the contacts list.
-
-## Docker Compose (Two-Node Test Environment)
-
-Docker Compose provides two isolated nodes on a shared network, solving the Unix socket and database conflicts that prevent running two instances locally.
-
-### Quick start
+Docker Compose gives you a two-node chat environment — no conflicts with local sockets or databases:
 
 ```sh
 docker compose up --build -d
-docker compose logs
 ```
 
-### Seed peer identities
+This creates two isolated nodes (`node1`, `node2`) on a shared network, each with its own identity and database.
 
-Each node only knows itself at startup. To enable messaging, cross-seed their identities:
-
-```sh
-# Export each node's identity
-NODE1_ROW=$(docker compose exec node1 sqlite3 /data/grat/db \
-  "SELECT address, key_bundle, net_addr_bundle_time, net_addr_bundle FROM identities LIMIT 1;")
-NODE2_ROW=$(docker compose exec node2 sqlite3 /data/grat/db \
-  "SELECT address, key_bundle, net_addr_bundle_time, net_addr_bundle FROM identities LIMIT 1;")
-
-# Insert node2 into node1's DB and vice versa
-docker compose exec node1 sqlite3 /data/grat/db \
-  "INSERT INTO identities (address, key_bundle, net_addr_bundle_time, net_addr_bundle) VALUES ($(echo "$NODE2_ROW" | awk -F'|' '{printf "'\''%s'\'', '\''%s'\'', %s, '\''%s'\''", $1, $2, $3, $4}'));"
-docker compose exec node2 sqlite3 /data/grat/db \
-  "INSERT INTO identities (address, key_bundle, net_addr_bundle_time, net_addr_bundle) VALUES ($(echo "$NODE1_ROW" | awk -F'|' '{printf "'\''%s'\'', '\''%s'\'', %s, '\''%s'\''", $1, $2, $3, $4}'));"
-```
-
-### Send and receive messages
-
-The key is symlinked to the default path inside the containers, so `-k` is not needed:
-
-```sh
-# Get addresses
-docker compose exec node1 gratcli identity
-docker compose exec node2 gratcli identity
-
-# Send from node1 to node2
-docker compose exec node1 gratcli message -r <NODE2_ADDR> -m "hello from node1"
-
-# Fetch on node2
-docker compose exec node2 gratcli fetch -p <NODE1_ADDR>
-```
-
-### Use the TUI inside Docker
+Open the TUI on a node:
 
 ```sh
 docker compose exec node1 gratcli tui
 ```
 
-### Tear down
+Press `a` in the contacts pane and type the other node's hostname (e.g. `node2`) to discover it. The discovery protocol connects to the peer, exchanges identities, and stores them automatically. Do the same from the other node and you're ready to chat.
 
-```sh
-docker compose down       # Stop containers
-docker compose down -v    # Stop and remove volumes (wipes keys and DB)
-```
+To tear down: `docker compose down -v`
 
-## Development
+## Codebase
 
-```sh
-nix develop               # Enter dev shell with Go, sqlc, golangci-lint
-make test                 # Run all tests
-go test ./pkg/...         # Run tests for a specific subtree
-```
+Two binaries, a handful of packages.
 
-SQL queries are generated via `sqlc`. After modifying files in `internal/database/queries/`, regenerate with:
+**Binaries** (`cmd/`):
+- `gratserver` — long-running daemon. Listens on TCP (`:1337`) for peer connections and on a Unix socket for local IPC from `gratcli`.
+- `gratcli` — CLI tool that talks to `gratserver` over the Unix socket. Sends messages, fetches messages, manages identity, launches the TUI.
 
-```sh
-sqlc generate
-```
+**Public packages** (`pkg/`):
+- `identity` — cryptographic identity: Ed25519 signing key + X25519 DH key, 20-byte base32 address, key bundles, signed network updates.
+- `doubleratchet` — Signal Double Ratchet (X25519 + AES-GCM). `kdfchain/` has the root and message KDF chain primitives.
+- `netprotocol` — binary wire protocol for peer TCP connections. Packet types: Heartbeat, Message, KeyExchange, Discovery. All fixed-size encoding.
+- `ipcprotocol` — binary wire protocol for local Unix socket IPC between CLI and server.
+- `session` — ties a `DoubleRatchet` to a `KeyBundle` and ephemeral exchange key. `SessionManager` maps peer addresses to sessions.
+
+**Internal packages** (`internal/`):
+- `nethandle` — TCP connection loop, dispatches packets to typed handlers.
+- `ipchandle` — Unix socket server for local CLI commands.
+- `database` — SQLite via `modernc.org/sqlite`, migrations via `golang-migrate`, queries generated by `sqlc`.
+
+SQL queries live in `internal/database/queries/`. After editing them, regenerate with `sqlc generate` (available in the Nix dev shell).

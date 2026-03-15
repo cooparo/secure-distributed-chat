@@ -71,6 +71,8 @@ type model struct {
 	aliasInput    textinput.Model
 	viewport      viewport.Model
 	focus         focusPane
+	prevFocus     focusPane
+	showHelp      bool
 	width, height int
 	err           error
 	statusMsg     string
@@ -403,6 +405,16 @@ func addPeerCmd(host string) tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Handle help overlay
+		if m.showHelp {
+			switch msg.String() {
+			case "?", "esc", "enter":
+				m.showHelp = false
+				m.focus = m.prevFocus
+			}
+			return m, nil
+		}
+
 		// Handle add-peer input mode
 		if m.focus == focusAddPeer {
 			switch msg.String() {
@@ -521,6 +533,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
+		case "?":
+			m.showHelp = true
+			m.prevFocus = m.focus
+			return m, nil
 		}
 
 	case tea.WindowSizeMsg:
@@ -651,7 +667,7 @@ func (m model) View() string {
 	chw := m.chatWidth()
 
 	// Header
-	header := titleStyle.Render("GRAT") + dimStyle.Render("  [c] copy address")
+	header := titleStyle.Render("GRAT") + dimStyle.Render("  [?] help  [c] copy address")
 
 	// Contacts pane
 	var contactLines []string
@@ -675,7 +691,7 @@ func (m model) View() string {
 	}
 
 	// Help line at bottom of contacts
-	helpLine := dimStyle.Render("[a]dd [n]ick [q]uit")
+	helpLine := dimStyle.Render("[a]dd [n]ick [?]help")
 
 	// Add-peer input overlay
 	if m.focus == focusAddPeer {
@@ -751,5 +767,67 @@ func (m model) View() string {
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, contactPane, chatPane)
 
-	return header + "\n" + body
+	screen := header + "\n" + body
+
+	// Help overlay
+	if m.showHelp {
+		helpTitle := titleStyle.Render("Keyboard Shortcuts")
+		helpText := strings.Join([]string{
+			helpTitle,
+			strings.Repeat("-", 30),
+			"",
+			selectedStyle.Render("General"),
+			"  ?          Show this help",
+			"  Tab        Switch pane",
+			"  Ctrl+C     Quit",
+			"",
+			selectedStyle.Render("Contacts pane"),
+			"  Up/Down    Navigate contacts",
+			"  a          Add peer by hostname",
+			"  n          Set nickname for contact",
+			"  c          Copy own address",
+			"  q          Quit",
+			"",
+			selectedStyle.Render("Chat pane"),
+			"  Enter      Send message",
+			"",
+			selectedStyle.Render("Input modes"),
+			"  Enter      Confirm",
+			"  Esc        Cancel",
+			"",
+			dimStyle.Render("Press ? or Esc to close"),
+		}, "\n")
+
+		helpW := 36
+		helpH := strings.Count(helpText, "\n") + 1
+		helpBox := activeBorderStyle.
+			Width(helpW).
+			Height(helpH).
+			Render(helpText)
+
+		// Center the overlay
+		helpLines := strings.Split(helpBox, "\n")
+		boxH := len(helpLines)
+		padTop := (m.height - boxH) / 2
+		if padTop < 0 {
+			padTop = 0
+		}
+		padLeft := (m.width - helpW - 4) / 2
+		if padLeft < 0 {
+			padLeft = 0
+		}
+
+		// Build overlay on blank screen
+		var overlay strings.Builder
+		for range padTop {
+			overlay.WriteString(strings.Repeat(" ", m.width) + "\n")
+		}
+		for _, line := range helpLines {
+			overlay.WriteString(strings.Repeat(" ", padLeft) + line + "\n")
+		}
+
+		screen = overlay.String()
+	}
+
+	return screen
 }

@@ -22,6 +22,8 @@ var packetTypeName = map[netprotocol.PacketType]string{
 	netprotocol.PacketTypeMessage:             "Message",
 	netprotocol.PacketTypeKeyExchangeRequest:  "Key Exchange Request",
 	netprotocol.PacketTypeKeyExchangeResponse: "Key Exchange Response",
+	netprotocol.PacketTypeDiscoveryRequest:    "Discovery Request",
+	netprotocol.PacketTypeDiscoveryResponse:   "Discovery Response",
 }
 
 type packetHandler func(context.Context, net.Conn, *session.SessionManager, *repository.Queries) error

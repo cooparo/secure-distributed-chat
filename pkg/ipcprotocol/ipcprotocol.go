@@ -25,6 +25,9 @@ const (
 	CommandTypeRemovePeer
 	CommandTypeRemovePeerAck
 	CommandTypeRemovePeerNac
+	CommandTypeClearChat
+	CommandTypeClearChatAck
+	CommandTypeClearChatNac
 )
 
 type MainHeader struct {

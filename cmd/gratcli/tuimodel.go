@@ -79,6 +79,12 @@ type removePeerResultMsg struct {
 	err     error
 }
 
+type clearChatResultMsg struct {
+	success bool
+	address string
+	err     error
+}
+
 type errMsg struct {
 	err error
 }
@@ -481,6 +487,57 @@ func removePeerCmd(address string) tea.Cmd {
 	}
 }
 
+func clearChatCmd(address string) tea.Cmd {
+	return func() tea.Msg {
+		conn, err := connect()
+		if err != nil {
+			return errMsg{err}
+		}
+		defer conn.Close()
+
+		mainhdr := &ipcprotocol.MainHeader{
+			Version:     1,
+			CommandType: ipcprotocol.CommandTypeClearChat,
+		}
+
+		pkt, err := mainhdr.MarshalBinary()
+		if err != nil {
+			return errMsg{err}
+		}
+
+		payload := &ipcprotocol.AddPeer{
+			Header: &ipcprotocol.AddPeerHeader{
+				AddressLength: uint16(len(address)),
+			},
+			Data: []byte(address),
+		}
+
+		pkt, err = payload.AppendBinary(pkt)
+		if err != nil {
+			return errMsg{err}
+		}
+
+		if _, err := conn.Write(pkt); err != nil {
+			return clearChatResultMsg{success: false, address: address, err: err}
+		}
+
+		ackByte := make([]byte, ipcprotocol.SizeMainHeader)
+		if _, err := io.ReadFull(conn, ackByte); err != nil {
+			return clearChatResultMsg{success: false, address: address, err: err}
+		}
+
+		var ackHdr ipcprotocol.MainHeader
+		if err := ackHdr.UnmarshalBinary(ackByte); err != nil {
+			return clearChatResultMsg{success: false, address: address, err: err}
+		}
+
+		return clearChatResultMsg{
+			success: ackHdr.CommandType == ipcprotocol.CommandTypeClearChatAck,
+			address: address,
+		}
+	}
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -634,6 +691,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.statusMsg = "Removing peer " + m.displayName(addr) + "..."
 				return m, removePeerCmd(addr)
 			}
+		case "x":
+			if m.contactIdx < len(m.contacts) {
+				addr := m.contacts[m.contactIdx]
+				m.statusMsg = "Clearing chat with " + m.displayName(addr) + "..."
+				return m, clearChatCmd(addr)
+			}
 		case "i":
 			m.prevFocus = m.focus
 			m.focus = focusInfo
@@ -711,6 +774,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statusMsg = fmt.Sprintf("Failed to remove peer: %s", msg.err.Error())
 		} else {
 			m.statusMsg = "Failed to remove peer"
+		}
+		return m, nil
+
+	case clearChatResultMsg:
+		if msg.success {
+			m.statusMsg = fmt.Sprintf("Chat with %s cleared", m.displayName(msg.address))
+			m.messages = nil
+			m.updateViewport()
+			return m, nil
+		}
+		if msg.err != nil {
+			m.statusMsg = fmt.Sprintf("Failed to clear chat: %s", msg.err.Error())
+		} else {
+			m.statusMsg = "Failed to clear chat"
 		}
 		return m, nil
 
@@ -883,7 +960,15 @@ func (m model) View() string {
 	chw := m.chatWidth()
 
 	// Main header bar
-	header := appTitleStyle.Render(" GRAT ") + headerDimStyle.Render("  [?] help  [c] copy  [i] info")
+	leftHeader := appTitleStyle.Render(" GRAT ") + headerDimStyle.Render("  [?] help  [c] copy  [i] info")
+	leftW := lipgloss.Width(leftHeader)
+	addrStr := headerDimStyle.Render(m.ourAddress)
+	addrW := lipgloss.Width(addrStr)
+	gap := m.width - leftW - addrW
+	if gap < 1 {
+		gap = 1
+	}
+	header := leftHeader + strings.Repeat(" ", gap) + addrStr
 
 	// --- Contacts pane ---
 	var contactLines []string
@@ -908,7 +993,7 @@ func (m model) View() string {
 	}
 
 	// Footer
-	helpLine := contactPreviewStyle.Render("[a]dd [d]el [n]ick [?]help")
+	helpLine := contactPreviewStyle.Render("[a]dd [d]el [x]clr [n]ick [?]help")
 
 	// Add-peer input overlay
 	if m.focus == focusAddPeer {
@@ -993,7 +1078,7 @@ func (m model) View() string {
 	}
 	chatPane := chatBorder.Width(chw - 2).Height(chatPaneHeight).Render(chatFull)
 
-	body := lipgloss.JoinHorizontal(lipgloss.Top, contactPane, chatPane)
+	body := lipgloss.JoinHorizontal(lipgloss.Bottom, contactPane, chatPane)
 	screen := header + "\n" + body
 
 	// Help overlay
@@ -1012,6 +1097,7 @@ func (m model) View() string {
 			"  Up/Down    Navigate contacts",
 			"  a          Add peer by hostname",
 			"  d          Remove selected peer",
+			"  x          Clear chat history",
 			"  n          Set nickname for contact",
 			"  c          Copy own address",
 			"  q          Quit",

@@ -39,6 +39,9 @@ var packetTypeName = map[ipcprotocol.CommandType]string{
 	ipcprotocol.CommandTypeRemovePeer:          "Remove Peer",
 	ipcprotocol.CommandTypeRemovePeerAck:       "Remove Peer ACK",
 	ipcprotocol.CommandTypeRemovePeerNac:       "Remove Peer NAC",
+	ipcprotocol.CommandTypeClearChat:           "Clear Chat",
+	ipcprotocol.CommandTypeClearChatAck:        "Clear Chat ACK",
+	ipcprotocol.CommandTypeClearChatNac:        "Clear Chat NAC",
 }
 
 type ipcServerpacketHandler func(context.Context, net.Conn, *ServerState) error
@@ -49,6 +52,7 @@ var packetServerHandler = map[ipcprotocol.CommandType]ipcServerpacketHandler{
 	ipcprotocol.CommandTypeListContacts:   handleServerListContacts,
 	ipcprotocol.CommandTypeAddPeer:        handleServerAddPeer,
 	ipcprotocol.CommandTypeRemovePeer:     handleServerRemovePeer,
+	ipcprotocol.CommandTypeClearChat:      handleServerClearChat,
 }
 
 type ipcClientPacketHandler func(context.Context, net.Conn) error

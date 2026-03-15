@@ -40,6 +40,17 @@ func (q *Queries) AddMessage(ctx context.Context, arg AddMessageParams) error {
 	return err
 }
 
+const deleteMessages = `-- name: DeleteMessages :exec
+DELETE FROM messages
+WHERE sender_id IN (SELECT id FROM identities WHERE identities.address = ?1)
+   OR receiver_id IN (SELECT id FROM identities WHERE identities.address = ?1)
+`
+
+func (q *Queries) DeleteMessages(ctx context.Context, peerAddress string) error {
+	_, err := q.db.ExecContext(ctx, deleteMessages, peerAddress)
+	return err
+}
+
 const getMessages = `-- name: GetMessages :many
 SELECT
 	sender.address AS sender_address,

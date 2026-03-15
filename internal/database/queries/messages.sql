@@ -11,6 +11,11 @@ SELECT
 	sqlc.arg(time),
 	sqlc.arg(contents);
 
+-- name: DeleteMessages :exec
+DELETE FROM messages
+WHERE sender_id IN (SELECT id FROM identities WHERE identities.address = sqlc.arg(peer_address))
+   OR receiver_id IN (SELECT id FROM identities WHERE identities.address = sqlc.arg(peer_address));
+
 -- name: GetMessages :many
 SELECT
 	sender.address AS sender_address,

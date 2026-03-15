@@ -27,6 +27,24 @@ const (
 	focusChat
 	focusAddPeer
 	focusSetAlias
+	focusInfo
+)
+
+// Style palette
+var (
+	appTitleStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15")).Background(lipgloss.Color("62")).Padding(0, 1)
+	sentBubbleStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("62")).Padding(0, 1)
+	recvBubbleStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("240")).Padding(0, 1)
+	timestampStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Italic(true)
+	contactNameStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+	contactSelectedStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15")).Background(lipgloss.Color("62"))
+	contactPreviewStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+	activePaneBorder     = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62"))
+	inactivePaneBorder   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240"))
+	errorStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
+	statusStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("246")).Italic(true)
+	headerDimStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+	sectionTitleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
 )
 
 // Messages for bubbletea
@@ -52,6 +70,13 @@ type sendResultMsg struct {
 type addPeerResultMsg struct {
 	success bool
 	host    string
+	err     error
+}
+
+type removePeerResultMsg struct {
+	success bool
+	address string
+	err     error
 }
 
 type errMsg struct {
@@ -358,6 +383,8 @@ func addPeerCmd(host string) tea.Cmd {
 		}
 		defer conn.Close()
 
+		conn.SetDeadline(time.Now().Add(35 * time.Second))
+
 		mainhdr := &ipcprotocol.MainHeader{
 			Version:     1,
 			CommandType: ipcprotocol.CommandTypeAddPeer,
@@ -381,23 +408,75 @@ func addPeerCmd(host string) tea.Cmd {
 		}
 
 		if _, err := conn.Write(pkt); err != nil {
-			return errMsg{err}
+			return addPeerResultMsg{success: false, host: host, err: err}
 		}
 
 		// Read ACK/NAC
 		ackByte := make([]byte, ipcprotocol.SizeMainHeader)
 		if _, err := io.ReadFull(conn, ackByte); err != nil {
-			return errMsg{err}
+			return addPeerResultMsg{success: false, host: host, err: err}
 		}
 
 		var ackHdr ipcprotocol.MainHeader
 		if err := ackHdr.UnmarshalBinary(ackByte); err != nil {
-			return errMsg{err}
+			return addPeerResultMsg{success: false, host: host, err: err}
 		}
 
 		return addPeerResultMsg{
 			success: ackHdr.CommandType == ipcprotocol.CommandTypeAddPeerAck,
 			host:    host,
+		}
+	}
+}
+
+func removePeerCmd(address string) tea.Cmd {
+	return func() tea.Msg {
+		conn, err := connect()
+		if err != nil {
+			return errMsg{err}
+		}
+		defer conn.Close()
+
+		mainhdr := &ipcprotocol.MainHeader{
+			Version:     1,
+			CommandType: ipcprotocol.CommandTypeRemovePeer,
+		}
+
+		pkt, err := mainhdr.MarshalBinary()
+		if err != nil {
+			return errMsg{err}
+		}
+
+		// Reuse AddPeer wire format (length-prefixed address string)
+		payload := &ipcprotocol.AddPeer{
+			Header: &ipcprotocol.AddPeerHeader{
+				AddressLength: uint16(len(address)),
+			},
+			Data: []byte(address),
+		}
+
+		pkt, err = payload.AppendBinary(pkt)
+		if err != nil {
+			return errMsg{err}
+		}
+
+		if _, err := conn.Write(pkt); err != nil {
+			return removePeerResultMsg{success: false, address: address, err: err}
+		}
+
+		ackByte := make([]byte, ipcprotocol.SizeMainHeader)
+		if _, err := io.ReadFull(conn, ackByte); err != nil {
+			return removePeerResultMsg{success: false, address: address, err: err}
+		}
+
+		var ackHdr ipcprotocol.MainHeader
+		if err := ackHdr.UnmarshalBinary(ackByte); err != nil {
+			return removePeerResultMsg{success: false, address: address, err: err}
+		}
+
+		return removePeerResultMsg{
+			success: ackHdr.CommandType == ipcprotocol.CommandTypeRemovePeerAck,
+			address: address,
 		}
 	}
 }
@@ -410,6 +489,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "?", "esc", "enter":
 				m.showHelp = false
+				m.focus = m.prevFocus
+			}
+			return m, nil
+		}
+
+		// Handle info overlay
+		if m.focus == focusInfo {
+			switch msg.String() {
+			case "i", "esc", "enter":
 				m.focus = m.prevFocus
 			}
 			return m, nil
@@ -533,6 +621,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
+		case "d":
+			if m.focus == focusContacts && m.contactIdx < len(m.contacts) {
+				addr := m.contacts[m.contactIdx]
+				m.statusMsg = "Removing peer " + m.displayName(addr) + "..."
+				return m, removePeerCmd(addr)
+			}
+		case "i":
+			if m.focus == focusContacts || m.focus == focusChat {
+				m.prevFocus = m.focus
+				m.focus = focusInfo
+				return m, nil
+			}
 		case "?":
 			m.showHelp = true
 			m.prevFocus = m.focus
@@ -582,7 +682,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statusMsg = fmt.Sprintf("Peer %s added!", msg.host)
 			return m, fetchContacts
 		}
-		m.statusMsg = fmt.Sprintf("Failed to add peer %s", msg.host)
+		if msg.err != nil {
+			m.statusMsg = fmt.Sprintf("Failed to add peer %s: %s", msg.host, msg.err.Error())
+		} else {
+			m.statusMsg = fmt.Sprintf("Failed to add peer %s", msg.host)
+		}
+		return m, nil
+
+	case removePeerResultMsg:
+		if msg.success {
+			display := m.displayName(msg.address)
+			delete(m.aliases, msg.address)
+			m.saveAliases()
+			m.statusMsg = fmt.Sprintf("Peer %s removed", display)
+			if m.contactIdx >= len(m.contacts)-1 && m.contactIdx > 0 {
+				m.contactIdx--
+			}
+			m.messages = nil
+			m.updateViewport()
+			return m, fetchContacts
+		}
+		if msg.err != nil {
+			m.statusMsg = fmt.Sprintf("Failed to remove peer: %s", msg.err.Error())
+		} else {
+			m.statusMsg = "Failed to remove peer"
+		}
 		return m, nil
 
 	case errMsg:
@@ -615,18 +739,88 @@ func (m *model) loadSelectedChat() tea.Cmd {
 	return nil
 }
 
+// wordWrap breaks a string into lines no wider than width.
+func wordWrap(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	words := strings.Fields(s)
+	if len(words) == 0 {
+		return ""
+	}
+	var lines []string
+	line := words[0]
+	for _, w := range words[1:] {
+		if len(line)+1+len(w) > width {
+			lines = append(lines, line)
+			line = w
+		} else {
+			line += " " + w
+		}
+	}
+	lines = append(lines, line)
+	return strings.Join(lines, "\n")
+}
+
+// getLocalIPs returns non-loopback IPv4 addresses as a comma-separated string.
+func getLocalIPs() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "unknown"
+	}
+	var ips []string
+	for _, a := range addrs {
+		ipNet, ok := a.(*net.IPNet)
+		if !ok {
+			continue
+		}
+		ip := ipNet.IP
+		if ip.IsLoopback() || ip.To4() == nil {
+			continue
+		}
+		ips = append(ips, ip.String())
+	}
+	if len(ips) == 0 {
+		return "none"
+	}
+	return strings.Join(ips, ", ")
+}
+
 func (m *model) updateViewport() {
+	maxBubbleW := (m.chatWidth() - 4) * 3 / 4
+	if maxBubbleW < 20 {
+		maxBubbleW = 20
+	}
+	chatW := m.chatWidth() - 4
+
 	var sb strings.Builder
 	for _, msg := range m.messages {
-		label := m.displayName(msg.sender)
-		if msg.sender == m.ourAddress {
-			label = "you"
+		isSent := msg.sender == m.ourAddress
+		ts := timestampStyle.Render(msg.timestamp.Format("15:04"))
+		wrapped := wordWrap(msg.content, maxBubbleW-2) // -2 for padding
+
+		if isSent {
+			bubble := sentBubbleStyle.Render(wrapped)
+			bubbleW := lipgloss.Width(bubble)
+			pad := chatW - bubbleW
+			if pad < 0 {
+				pad = 0
+			}
+			sb.WriteString(strings.Repeat(" ", pad) + bubble + "\n")
+			tsW := lipgloss.Width(ts)
+			tsPad := chatW - tsW
+			if tsPad < 0 {
+				tsPad = 0
+			}
+			sb.WriteString(strings.Repeat(" ", tsPad) + ts + "\n")
+		} else {
+			senderName := contactNameStyle.Bold(true).Render(m.displayName(msg.sender))
+			sb.WriteString(senderName + "\n")
+			bubble := recvBubbleStyle.Render(wrapped)
+			sb.WriteString(bubble + "\n")
+			sb.WriteString(ts + "\n")
 		}
-		sb.WriteString(fmt.Sprintf("[%s] %s: %s\n",
-			msg.timestamp.Format("15:04:05"),
-			label,
-			msg.content,
-		))
+		sb.WriteString("\n")
 	}
 	m.viewport.SetContent(sb.String())
 	m.viewport.GotoBottom()
@@ -651,52 +845,76 @@ func (m model) chatHeight() int {
 	return m.height - 6 // header + input + borders
 }
 
+// renderOverlay centers a box on a blank screen.
+func (m model) renderOverlay(box string) string {
+	boxLines := strings.Split(box, "\n")
+	boxH := len(boxLines)
+	boxW := 0
+	for _, l := range boxLines {
+		if w := lipgloss.Width(l); w > boxW {
+			boxW = w
+		}
+	}
+
+	padTop := (m.height - boxH) / 2
+	if padTop < 0 {
+		padTop = 0
+	}
+	padLeft := (m.width - boxW) / 2
+	if padLeft < 0 {
+		padLeft = 0
+	}
+
+	var overlay strings.Builder
+	for range padTop {
+		overlay.WriteString(strings.Repeat(" ", m.width) + "\n")
+	}
+	for _, line := range boxLines {
+		overlay.WriteString(strings.Repeat(" ", padLeft) + line + "\n")
+	}
+	return overlay.String()
+}
+
 func (m model) View() string {
 	if m.width == 0 {
 		return "Loading..."
 	}
 
-	// Styles
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
-	selectedStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10"))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	borderStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("8"))
-	activeBorderStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("12"))
-
 	cw := m.contactsWidth()
 	chw := m.chatWidth()
 
-	// Header
-	header := titleStyle.Render("GRAT") + dimStyle.Render("  [?] help  [c] copy address")
+	// Main header bar
+	header := appTitleStyle.Render(" GRAT ") + headerDimStyle.Render("  [?] help  [c] copy  [i] info")
 
-	// Contacts pane
+	// --- Contacts pane ---
 	var contactLines []string
-	contactLines = append(contactLines, titleStyle.Render("Contacts"))
-	contactLines = append(contactLines, strings.Repeat("-", cw-4))
+	contactLines = append(contactLines, sectionTitleStyle.Render("Contacts"))
+	contactLines = append(contactLines, headerDimStyle.Render(strings.Repeat("─", cw-4)))
 
 	for i, addr := range m.contacts {
 		display := m.displayName(addr)
-		if len(display) > cw-6 {
-			display = display[:cw-6] + ".."
+		if len(display) > cw-4 {
+			display = display[:cw-4] + ".."
 		}
 		if i == m.contactIdx {
-			contactLines = append(contactLines, selectedStyle.Render("> "+display))
+			row := contactSelectedStyle.Width(cw - 4).Render(display)
+			contactLines = append(contactLines, row)
 		} else {
-			contactLines = append(contactLines, "  "+display)
+			contactLines = append(contactLines, contactNameStyle.Render(" "+display))
 		}
 	}
 
 	if len(m.contacts) == 0 {
-		contactLines = append(contactLines, dimStyle.Render("  No contacts"))
+		contactLines = append(contactLines, contactPreviewStyle.Render("  No contacts"))
 	}
 
-	// Help line at bottom of contacts
-	helpLine := dimStyle.Render("[a]dd [n]ick [?]help")
+	// Footer
+	helpLine := contactPreviewStyle.Render("[a]dd [d]el [n]ick [?]help")
 
 	// Add-peer input overlay
 	if m.focus == focusAddPeer {
 		contactLines = append(contactLines, "")
-		contactLines = append(contactLines, titleStyle.Render("Add peer:"))
+		contactLines = append(contactLines, sectionTitleStyle.Render("Add peer:"))
 		m.addPeerInput.Width = cw - 6
 		contactLines = append(contactLines, m.addPeerInput.View())
 	}
@@ -704,14 +922,13 @@ func (m model) View() string {
 	// Set-alias input overlay
 	if m.focus == focusSetAlias {
 		contactLines = append(contactLines, "")
-		contactLines = append(contactLines, titleStyle.Render("Set alias:"))
+		contactLines = append(contactLines, sectionTitleStyle.Render("Set alias:"))
 		m.aliasInput.Width = cw - 6
 		contactLines = append(contactLines, m.aliasInput.View())
 	}
 
 	contactContent := strings.Join(contactLines, "\n")
 	contactPaneHeight := m.height - 4
-	// Pad to fill height, leaving room for help line
 	lines := strings.Count(contactContent, "\n") + 1
 	for lines < contactPaneHeight-1 {
 		contactContent += "\n"
@@ -719,27 +936,38 @@ func (m model) View() string {
 	}
 	contactContent += "\n" + helpLine
 
-	contactPane := borderStyle.Width(cw - 2).Height(contactPaneHeight).Render(contactContent)
+	contactBorder := inactivePaneBorder
 	if m.focus == focusContacts || m.focus == focusAddPeer || m.focus == focusSetAlias {
-		contactPane = activeBorderStyle.Width(cw - 2).Height(contactPaneHeight).Render(contactContent)
+		contactBorder = activePaneBorder
 	}
+	contactPane := contactBorder.Width(cw - 2).Height(contactPaneHeight).Render(contactContent)
 
-	// Chat pane
-	chatTitle := "Chat"
+	// --- Chat pane ---
+	// Chat header
+	var chatHeader string
 	if m.contactIdx < len(m.contacts) {
 		peer := m.contacts[m.contactIdx]
 		peerDisplay := m.displayName(peer)
 		if len(peerDisplay) > chw-10 {
 			peerDisplay = peerDisplay[:chw-10] + ".."
 		}
-		chatTitle = "Chat with " + peerDisplay
+		chatHeader = appTitleStyle.Render(" " + peerDisplay + " ")
+		if _, hasAlias := m.aliases[peer]; hasAlias {
+			truncAddr := peer
+			if len(truncAddr) > chw-6 {
+				truncAddr = truncAddr[:chw-6] + ".."
+			}
+			chatHeader += "\n" + headerDimStyle.Render(truncAddr)
+		}
+	} else {
+		chatHeader = headerDimStyle.Render("Select a contact")
 	}
 
 	// Messages viewport
 	m.viewport.Width = chw - 4
 	m.viewport.Height = m.chatHeight()
-	chatContent := titleStyle.Render(chatTitle) + "\n" +
-		strings.Repeat("-", chw-4) + "\n" +
+	chatContent := chatHeader + "\n" +
+		headerDimStyle.Render(strings.Repeat("─", chw-4)) + "\n" +
 		m.viewport.View()
 
 	// Input
@@ -749,9 +977,9 @@ func (m model) View() string {
 	// Status/error
 	statusLine := ""
 	if m.err != nil {
-		statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render("Error: " + m.err.Error())
+		statusLine = errorStyle.Render("Error: " + m.err.Error())
 	} else if m.statusMsg != "" {
-		statusLine = dimStyle.Render(m.statusMsg)
+		statusLine = statusStyle.Render(m.statusMsg)
 	}
 
 	chatFull := chatContent + "\n" + inputContent
@@ -760,73 +988,92 @@ func (m model) View() string {
 	}
 
 	chatPaneHeight := m.height - 4
-	chatPane := borderStyle.Width(chw - 2).Height(chatPaneHeight).Render(chatFull)
+	chatBorder := inactivePaneBorder
 	if m.focus == focusChat {
-		chatPane = activeBorderStyle.Width(chw - 2).Height(chatPaneHeight).Render(chatFull)
+		chatBorder = activePaneBorder
 	}
+	chatPane := chatBorder.Width(chw - 2).Height(chatPaneHeight).Render(chatFull)
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, contactPane, chatPane)
-
 	screen := header + "\n" + body
 
 	// Help overlay
 	if m.showHelp {
-		helpTitle := titleStyle.Render("Keyboard Shortcuts")
 		helpText := strings.Join([]string{
-			helpTitle,
-			strings.Repeat("-", 30),
+			sectionTitleStyle.Render("Keyboard Shortcuts"),
+			headerDimStyle.Render(strings.Repeat("─", 30)),
 			"",
-			selectedStyle.Render("General"),
+			sectionTitleStyle.Render("General"),
 			"  ?          Show this help",
+			"  i          Show info",
 			"  Tab        Switch pane",
 			"  Ctrl+C     Quit",
 			"",
-			selectedStyle.Render("Contacts pane"),
+			sectionTitleStyle.Render("Contacts pane"),
 			"  Up/Down    Navigate contacts",
 			"  a          Add peer by hostname",
+			"  d          Remove selected peer",
 			"  n          Set nickname for contact",
 			"  c          Copy own address",
 			"  q          Quit",
 			"",
-			selectedStyle.Render("Chat pane"),
+			sectionTitleStyle.Render("Chat pane"),
 			"  Enter      Send message",
 			"",
-			selectedStyle.Render("Input modes"),
+			sectionTitleStyle.Render("Input modes"),
 			"  Enter      Confirm",
 			"  Esc        Cancel",
 			"",
-			dimStyle.Render("Press ? or Esc to close"),
+			headerDimStyle.Render("Press ? or Esc to close"),
 		}, "\n")
 
 		helpW := 36
 		helpH := strings.Count(helpText, "\n") + 1
-		helpBox := activeBorderStyle.
+		helpBox := activePaneBorder.
 			Width(helpW).
 			Height(helpH).
 			Render(helpText)
 
-		// Center the overlay
-		helpLines := strings.Split(helpBox, "\n")
-		boxH := len(helpLines)
-		padTop := (m.height - boxH) / 2
-		if padTop < 0 {
-			padTop = 0
-		}
-		padLeft := (m.width - helpW - 4) / 2
-		if padLeft < 0 {
-			padLeft = 0
+		screen = m.renderOverlay(helpBox)
+	}
+
+	// Info overlay
+	if m.focus == focusInfo {
+		sent, recv := 0, 0
+		for _, msg := range m.messages {
+			if msg.sender == m.ourAddress {
+				sent++
+			} else {
+				recv++
+			}
 		}
 
-		// Build overlay on blank screen
-		var overlay strings.Builder
-		for range padTop {
-			overlay.WriteString(strings.Repeat(" ", m.width) + "\n")
-		}
-		for _, line := range helpLines {
-			overlay.WriteString(strings.Repeat(" ", padLeft) + line + "\n")
-		}
+		infoText := strings.Join([]string{
+			sectionTitleStyle.Render("Node Info"),
+			headerDimStyle.Render(strings.Repeat("─", 46)),
+			"",
+			sectionTitleStyle.Render("Identity"),
+			"  " + m.ourAddress,
+			"",
+			sectionTitleStyle.Render("Network"),
+			"  LAN IPs: " + getLocalIPs(),
+			"  Server port: 1337",
+			"",
+			sectionTitleStyle.Render("Stats"),
+			fmt.Sprintf("  Peers: %d", len(m.contacts)),
+			fmt.Sprintf("  Messages: %d  (sent %d / recv %d)", len(m.messages), sent, recv),
+			"",
+			headerDimStyle.Render("Press i or Esc to close"),
+		}, "\n")
 
-		screen = overlay.String()
+		infoW := 50
+		infoH := strings.Count(infoText, "\n") + 1
+		infoBox := activePaneBorder.
+			Width(infoW).
+			Height(infoH).
+			Render(infoText)
+
+		screen = m.renderOverlay(infoBox)
 	}
 
 	return screen

@@ -3,6 +3,7 @@ package ipchandle
 import (
 	"context"
 	"net"
+	"time"
 
 	"github.com/cooparo/secure-distributed-chat/internal/logger"
 	"github.com/cooparo/secure-distributed-chat/internal/netclient"
@@ -44,8 +45,11 @@ func handleServerAddPeer(ctx context.Context, conn net.Conn, state *ServerState)
 		return nil
 	}
 
+	discoverCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	err = netclient.DiscoverPeer(
-		ctx,
+		discoverCtx,
 		host,
 		ourAddress,
 		state.OurSignedKeyBundle,

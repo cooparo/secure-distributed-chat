@@ -53,7 +53,7 @@ func startServer(keyFile string) (*os.Process, error) {
 	}
 
 	var outputBuf bytes.Buffer
-	cmd := exec.Command(bin, "-k", keyFile, "-a", "::1", "-p", "0")
+	cmd := exec.Command(bin, "-k", keyFile, "-a", "::", "-p", "1337")
 	cmd.Stdout = &outputBuf
 	cmd.Stderr = &outputBuf
 	if err := cmd.Start(); err != nil {

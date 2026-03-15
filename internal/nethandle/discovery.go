@@ -119,7 +119,7 @@ func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.Ses
 		}
 
 		fullidSignetupd := fullid.SignedNetworkUpdate
-		fullidNetupd := signetupd.Inner
+		fullidNetupd := fullidSignetupd.Inner
 
 		if err := fullidSignetupd.Verify(fullidKeybndl.SigningKey); err != nil {
 			logger.Get().Warnf("Signed Networkupdate for Additional identity address %s cannot be verified", fullid.Address.Base32())
@@ -182,14 +182,7 @@ func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.Ses
 		PacketType: netprotocol.PacketTypeDiscoveryResponse,
 	}
 
-	discresphdr := &netprotocol.DiscoveryResponseHeader{
-		SendIDAddr:    mgr.Address,
-		Flags:         responseFlags,
-		IdentityCount: discreqhdr.MaxIdentityCount,
-	}
-
 	discresp := &netprotocol.DiscoveryResponse{
-		Header:     discresphdr,
 		Identities: make([]*netprotocol.FullIdentity, 0, discreqhdr.MaxIdentityCount),
 	}
 
@@ -211,7 +204,7 @@ func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.Ses
 		})
 	}
 
-	for i := range extraIdCount {
+	for i := range len(extraIdRows) {
 		extraId := extraIdRows[i]
 
 		extraIdAddress, err := identity.IdentityFromBase32(extraId.Address)
@@ -234,6 +227,12 @@ func handleDiscoveryRequest(ctx context.Context, conn net.Conn, mgr *session.Ses
 			SignedKeyBundle:     extraIdSigkeybndl,
 			SignedNetworkUpdate: extraIdSignetupd,
 		})
+	}
+
+	discresp.Header = &netprotocol.DiscoveryResponseHeader{
+		SendIDAddr:    mgr.Address,
+		Flags:         responseFlags,
+		IdentityCount: uint8(len(discresp.Identities)),
 	}
 
 	pkt, err := mainhdr.MarshalBinary()

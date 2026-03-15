@@ -8,7 +8,7 @@
 # Check https://nixos.org/manual/nixpkgs/stable/#sec-language-go
 buildGoModule {
   pname = "grat";
-  version = "0.8.0";
+  version = "0.9.0";
 
   meta = with lib; {
     description = "P2P chat, written in Go";

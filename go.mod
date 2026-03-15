@@ -3,6 +3,7 @@ module github.com/cooparo/secure-distributed-chat
 go 1.25.3
 
 require (
+	github.com/atotto/clipboard v0.1.4
 	github.com/golang-migrate/migrate/v4 v4.19.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.1
@@ -10,7 +11,6 @@ require (
 )
 
 require (
-	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/bubbles v1.0.0 // indirect
 	github.com/charmbracelet/bubbletea v1.3.10 // indirect

@@ -1,12 +1,16 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,6 +25,8 @@ type focusPane int
 const (
 	focusContacts focusPane = iota
 	focusChat
+	focusAddPeer
+	focusSetAlias
 )
 
 // Messages for bubbletea
@@ -43,6 +49,11 @@ type sendResultMsg struct {
 	success bool
 }
 
+type addPeerResultMsg struct {
+	success bool
+	host    string
+}
+
 type errMsg struct {
 	err error
 }
@@ -56,11 +67,15 @@ type model struct {
 	contactIdx    int
 	messages      []chatMessage
 	input         textinput.Model
+	addPeerInput  textinput.Model
+	aliasInput    textinput.Model
 	viewport      viewport.Model
 	focus         focusPane
 	width, height int
 	err           error
 	statusMsg     string
+	aliases       map[string]string
+	aliasFile     string
 }
 
 func newModel(address identity.IdentityAddress) model {
@@ -68,14 +83,58 @@ func newModel(address identity.IdentityAddress) model {
 	ti.Placeholder = "Type a message..."
 	ti.CharLimit = 500
 
+	api := textinput.New()
+	api.Placeholder = "Hostname or IP..."
+	api.CharLimit = 256
+
+	ali := textinput.New()
+	ali.Placeholder = "Nickname..."
+	ali.CharLimit = 32
+
 	vp := viewport.New(0, 0)
 
-	return model{
-		ourAddress: address.Base32(),
-		input:      ti,
-		viewport:   vp,
-		focus:      focusContacts,
+	aliasFile := ""
+	if home, err := os.UserHomeDir(); err == nil {
+		dir := filepath.Join(home, ".config", "grat")
+		os.MkdirAll(dir, 0700)
+		aliasFile = filepath.Join(dir, "aliases.json")
 	}
+
+	aliases := make(map[string]string)
+	if aliasFile != "" {
+		if data, err := os.ReadFile(aliasFile); err == nil {
+			json.Unmarshal(data, &aliases)
+		}
+	}
+
+	return model{
+		ourAddress:   address.Base32(),
+		input:        ti,
+		addPeerInput: api,
+		aliasInput:   ali,
+		viewport:     vp,
+		focus:        focusContacts,
+		aliases:      aliases,
+		aliasFile:    aliasFile,
+	}
+}
+
+func (m *model) saveAliases() {
+	if m.aliasFile == "" {
+		return
+	}
+	data, err := json.MarshalIndent(m.aliases, "", "  ")
+	if err != nil {
+		return
+	}
+	os.WriteFile(m.aliasFile, data, 0600)
+}
+
+func (m model) displayName(addr string) string {
+	if alias, ok := m.aliases[addr]; ok {
+		return alias
+	}
+	return addr
 }
 
 func (m model) Init() tea.Cmd {
@@ -289,9 +348,117 @@ func sendMessage(peerAddr string, message string) tea.Cmd {
 	}
 }
 
+func addPeerCmd(host string) tea.Cmd {
+	return func() tea.Msg {
+		conn, err := connect()
+		if err != nil {
+			return errMsg{err}
+		}
+		defer conn.Close()
+
+		mainhdr := &ipcprotocol.MainHeader{
+			Version:     1,
+			CommandType: ipcprotocol.CommandTypeAddPeer,
+		}
+
+		pkt, err := mainhdr.MarshalBinary()
+		if err != nil {
+			return errMsg{err}
+		}
+
+		addpeer := &ipcprotocol.AddPeer{
+			Header: &ipcprotocol.AddPeerHeader{
+				AddressLength: uint16(len(host)),
+			},
+			Data: []byte(host),
+		}
+
+		pkt, err = addpeer.AppendBinary(pkt)
+		if err != nil {
+			return errMsg{err}
+		}
+
+		if _, err := conn.Write(pkt); err != nil {
+			return errMsg{err}
+		}
+
+		// Read ACK/NAC
+		ackByte := make([]byte, ipcprotocol.SizeMainHeader)
+		if _, err := io.ReadFull(conn, ackByte); err != nil {
+			return errMsg{err}
+		}
+
+		var ackHdr ipcprotocol.MainHeader
+		if err := ackHdr.UnmarshalBinary(ackByte); err != nil {
+			return errMsg{err}
+		}
+
+		return addPeerResultMsg{
+			success: ackHdr.CommandType == ipcprotocol.CommandTypeAddPeerAck,
+			host:    host,
+		}
+	}
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Handle add-peer input mode
+		if m.focus == focusAddPeer {
+			switch msg.String() {
+			case "enter":
+				host := m.addPeerInput.Value()
+				m.addPeerInput.SetValue("")
+				m.addPeerInput.Blur()
+				m.focus = focusContacts
+				if host != "" {
+					m.statusMsg = "Discovering peer " + host + "..."
+					return m, addPeerCmd(host)
+				}
+				return m, nil
+			case "esc":
+				m.addPeerInput.SetValue("")
+				m.addPeerInput.Blur()
+				m.focus = focusContacts
+				return m, nil
+			default:
+				var cmd tea.Cmd
+				m.addPeerInput, cmd = m.addPeerInput.Update(msg)
+				return m, cmd
+			}
+		}
+
+		// Handle set-alias input mode
+		if m.focus == focusSetAlias {
+			switch msg.String() {
+			case "enter":
+				alias := m.aliasInput.Value()
+				m.aliasInput.SetValue("")
+				m.aliasInput.Blur()
+				m.focus = focusContacts
+				if m.contactIdx < len(m.contacts) {
+					addr := m.contacts[m.contactIdx]
+					if alias == "" {
+						delete(m.aliases, addr)
+					} else {
+						m.aliases[addr] = alias
+					}
+					m.saveAliases()
+					m.statusMsg = "Alias updated"
+				}
+				return m, nil
+			case "esc":
+				m.aliasInput.SetValue("")
+				m.aliasInput.Blur()
+				m.focus = focusContacts
+				return m, nil
+			default:
+				var cmd tea.Cmd
+				m.aliasInput, cmd = m.aliasInput.Update(msg)
+				return m, cmd
+			}
+		}
+
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
@@ -326,6 +493,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					peer := m.contacts[m.contactIdx]
 					return m, sendMessage(peer, msg)
 				}
+			}
+		case "a":
+			if m.focus == focusContacts {
+				m.focus = focusAddPeer
+				m.addPeerInput.Focus()
+				m.statusMsg = ""
+				return m, nil
+			}
+		case "n":
+			if m.focus == focusContacts && m.contactIdx < len(m.contacts) {
+				m.focus = focusSetAlias
+				addr := m.contacts[m.contactIdx]
+				if existing, ok := m.aliases[addr]; ok {
+					m.aliasInput.SetValue(existing)
+				}
+				m.aliasInput.Focus()
+				m.statusMsg = ""
+				return m, nil
+			}
+		case "c":
+			if m.focus == focusContacts {
+				if err := clipboard.WriteAll(m.ourAddress); err != nil {
+					m.statusMsg = "Copy failed: " + err.Error()
+				} else {
+					m.statusMsg = "Address copied!"
+				}
+				return m, nil
 			}
 		}
 
@@ -367,6 +561,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case addPeerResultMsg:
+		if msg.success {
+			m.statusMsg = fmt.Sprintf("Peer %s added!", msg.host)
+			return m, fetchContacts
+		}
+		m.statusMsg = fmt.Sprintf("Failed to add peer %s", msg.host)
+		return m, nil
+
 	case errMsg:
 		m.err = msg.err
 		return m, nil
@@ -400,7 +602,7 @@ func (m *model) loadSelectedChat() tea.Cmd {
 func (m *model) updateViewport() {
 	var sb strings.Builder
 	for _, msg := range m.messages {
-		label := "them"
+		label := m.displayName(msg.sender)
 		if msg.sender == m.ourAddress {
 			label = "you"
 		}
@@ -449,18 +651,15 @@ func (m model) View() string {
 	chw := m.chatWidth()
 
 	// Header
-	addrShort := m.ourAddress
-	if len(addrShort) > 16 {
-		addrShort = addrShort[:16] + "..."
-	}
-	header := titleStyle.Render("GRAT") + strings.Repeat(" ", max(0, m.width-4-len(addrShort)-4)) + dimStyle.Render(addrShort)
+	header := titleStyle.Render("GRAT") + dimStyle.Render("  [c] copy address")
 
 	// Contacts pane
 	var contactLines []string
 	contactLines = append(contactLines, titleStyle.Render("Contacts"))
 	contactLines = append(contactLines, strings.Repeat("-", cw-4))
+
 	for i, addr := range m.contacts {
-		display := addr
+		display := m.displayName(addr)
 		if len(display) > cw-6 {
 			display = display[:cw-6] + ".."
 		}
@@ -470,21 +669,42 @@ func (m model) View() string {
 			contactLines = append(contactLines, "  "+display)
 		}
 	}
+
 	if len(m.contacts) == 0 {
 		contactLines = append(contactLines, dimStyle.Render("  No contacts"))
 	}
 
+	// Help line at bottom of contacts
+	helpLine := dimStyle.Render("[a]dd [n]ick [q]uit")
+
+	// Add-peer input overlay
+	if m.focus == focusAddPeer {
+		contactLines = append(contactLines, "")
+		contactLines = append(contactLines, titleStyle.Render("Add peer:"))
+		m.addPeerInput.Width = cw - 6
+		contactLines = append(contactLines, m.addPeerInput.View())
+	}
+
+	// Set-alias input overlay
+	if m.focus == focusSetAlias {
+		contactLines = append(contactLines, "")
+		contactLines = append(contactLines, titleStyle.Render("Set alias:"))
+		m.aliasInput.Width = cw - 6
+		contactLines = append(contactLines, m.aliasInput.View())
+	}
+
 	contactContent := strings.Join(contactLines, "\n")
 	contactPaneHeight := m.height - 4
-	// Pad to fill height
+	// Pad to fill height, leaving room for help line
 	lines := strings.Count(contactContent, "\n") + 1
-	for lines < contactPaneHeight {
+	for lines < contactPaneHeight-1 {
 		contactContent += "\n"
 		lines++
 	}
+	contactContent += "\n" + helpLine
 
 	contactPane := borderStyle.Width(cw - 2).Height(contactPaneHeight).Render(contactContent)
-	if m.focus == focusContacts {
+	if m.focus == focusContacts || m.focus == focusAddPeer || m.focus == focusSetAlias {
 		contactPane = activeBorderStyle.Width(cw - 2).Height(contactPaneHeight).Render(contactContent)
 	}
 
@@ -492,10 +712,11 @@ func (m model) View() string {
 	chatTitle := "Chat"
 	if m.contactIdx < len(m.contacts) {
 		peer := m.contacts[m.contactIdx]
-		if len(peer) > chw-10 {
-			peer = peer[:chw-10] + ".."
+		peerDisplay := m.displayName(peer)
+		if len(peerDisplay) > chw-10 {
+			peerDisplay = peerDisplay[:chw-10] + ".."
 		}
-		chatTitle = "Chat with " + peer
+		chatTitle = "Chat with " + peerDisplay
 	}
 
 	// Messages viewport

@@ -3,12 +3,81 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/cooparo/secure-distributed-chat/internal/ipchandle"
 	"github.com/cooparo/secure-distributed-chat/pkg/identity"
 	"github.com/spf13/cobra"
 )
+
+// findGratserver locates the gratserver binary: first next to the current
+// executable (e.g. both in bin/), then falls back to PATH lookup.
+func findGratserver() (string, error) {
+	self, err := os.Executable()
+	if err == nil {
+		sibling := filepath.Join(filepath.Dir(self), "gratserver")
+		if _, err := os.Stat(sibling); err == nil {
+			return sibling, nil
+		}
+	}
+	return exec.LookPath("gratserver")
+}
+
+// serverAlreadyRunning checks if a gratserver is already listening on the
+// Unix socket.
+func serverAlreadyRunning() bool {
+	sp, err := ipchandle.DefaultSocketPath()
+	if err != nil {
+		return false
+	}
+	conn, err := net.DialTimeout("unix", sp, 500*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
+// startServer launches gratserver as a background process and waits for the
+// socket to become available. Returns the process so the caller can stop it.
+func startServer(keyFile string) (*os.Process, error) {
+	bin, err := findGratserver()
+	if err != nil {
+		return nil, fmt.Errorf("cannot find gratserver: %w", err)
+	}
+
+	cmd := exec.Command(bin, "-k", keyFile)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start gratserver: %w", err)
+	}
+
+	// Wait for socket to appear
+	sp, err := ipchandle.DefaultSocketPath()
+	if err != nil {
+		cmd.Process.Kill()
+		return nil, err
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("unix", sp, 200*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			return cmd.Process, nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	cmd.Process.Kill()
+	return nil, fmt.Errorf("gratserver did not become ready within 5s")
+}
 
 var tuiCmd = &cobra.Command{
 	Use:   "tui",
@@ -41,6 +110,21 @@ var tuiCmd = &cobra.Command{
 		if err != nil {
 			fmt.Printf("Error calculating address: %s\n", err.Error())
 			os.Exit(1)
+		}
+
+		// Start gratserver if not already running
+		var serverProc *os.Process
+		if !serverAlreadyRunning() {
+			fmt.Println("Starting gratserver...")
+			serverProc, err = startServer(keyFile)
+			if err != nil {
+				fmt.Printf("Error starting server: %s\n", err.Error())
+				os.Exit(1)
+			}
+			defer func() {
+				serverProc.Signal(os.Interrupt)
+				serverProc.Wait()
+			}()
 		}
 
 		m := newModel(address)

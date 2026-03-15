@@ -487,7 +487,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle help overlay
 		if m.showHelp {
 			switch msg.String() {
-			case "?", "esc", "enter":
+			case "?", "q", "esc", "enter":
 				m.showHelp = false
 				m.focus = m.prevFocus
 			}
@@ -497,7 +497,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle info overlay
 		if m.focus == focusInfo {
 			switch msg.String() {
-			case "i", "esc", "enter":
+			case "i", "q", "esc", "enter":
 				m.focus = m.prevFocus
 			}
 			return m, nil
@@ -559,50 +559,59 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// Handle chat pane: only ctrl+c, tab, enter are special; rest goes to input
+		if m.focus == focusChat {
+			switch msg.String() {
+			case "ctrl+c":
+				return m, tea.Quit
+			case "tab":
+				m.focus = focusContacts
+				m.input.Blur()
+				return m, nil
+			case "enter":
+				if m.input.Value() != "" {
+					msg := m.input.Value()
+					m.input.SetValue("")
+					if m.contactIdx < len(m.contacts) {
+						peer := m.contacts[m.contactIdx]
+						return m, sendMessage(peer, msg)
+					}
+				}
+				return m, nil
+			default:
+				var cmd tea.Cmd
+				m.input, cmd = m.input.Update(msg)
+				return m, cmd
+			}
+		}
+
+		// Contacts pane keybinds
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "q":
-			if m.focus == focusContacts {
-				return m, tea.Quit
-			}
+			return m, tea.Quit
 		case "tab":
-			if m.focus == focusContacts {
-				m.focus = focusChat
-				m.input.Focus()
-			} else {
-				m.focus = focusContacts
-				m.input.Blur()
-			}
+			m.focus = focusChat
+			m.input.Focus()
 			return m, nil
 		case "up":
-			if m.focus == focusContacts && m.contactIdx > 0 {
+			if m.contactIdx > 0 {
 				m.contactIdx--
 				return m, m.loadSelectedChat()
 			}
 		case "down":
-			if m.focus == focusContacts && m.contactIdx < len(m.contacts)-1 {
+			if m.contactIdx < len(m.contacts)-1 {
 				m.contactIdx++
 				return m, m.loadSelectedChat()
 			}
-		case "enter":
-			if m.focus == focusChat && m.input.Value() != "" {
-				msg := m.input.Value()
-				m.input.SetValue("")
-				if m.contactIdx < len(m.contacts) {
-					peer := m.contacts[m.contactIdx]
-					return m, sendMessage(peer, msg)
-				}
-			}
 		case "a":
-			if m.focus == focusContacts {
-				m.focus = focusAddPeer
-				m.addPeerInput.Focus()
-				m.statusMsg = ""
-				return m, nil
-			}
+			m.focus = focusAddPeer
+			m.addPeerInput.Focus()
+			m.statusMsg = ""
+			return m, nil
 		case "n":
-			if m.focus == focusContacts && m.contactIdx < len(m.contacts) {
+			if m.contactIdx < len(m.contacts) {
 				m.focus = focusSetAlias
 				addr := m.contacts[m.contactIdx]
 				if existing, ok := m.aliases[addr]; ok {
@@ -613,26 +622,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		case "c":
-			if m.focus == focusContacts {
-				if err := clipboard.WriteAll(m.ourAddress); err != nil {
-					m.statusMsg = "Copy failed: " + err.Error()
-				} else {
-					m.statusMsg = "Address copied!"
-				}
-				return m, nil
+			if err := clipboard.WriteAll(m.ourAddress); err != nil {
+				m.statusMsg = "Copy failed: " + err.Error()
+			} else {
+				m.statusMsg = "Address copied!"
 			}
+			return m, nil
 		case "d":
-			if m.focus == focusContacts && m.contactIdx < len(m.contacts) {
+			if m.contactIdx < len(m.contacts) {
 				addr := m.contacts[m.contactIdx]
 				m.statusMsg = "Removing peer " + m.displayName(addr) + "..."
 				return m, removePeerCmd(addr)
 			}
 		case "i":
-			if m.focus == focusContacts || m.focus == focusChat {
-				m.prevFocus = m.focus
-				m.focus = focusInfo
-				return m, nil
-			}
+			m.prevFocus = m.focus
+			m.focus = focusInfo
+			return m, nil
 		case "?":
 			m.showHelp = true
 			m.prevFocus = m.focus
@@ -723,12 +728,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	}
 
-	if m.focus == focusChat {
-		var cmd tea.Cmd
-		m.input, cmd = m.input.Update(msg)
-		return m, cmd
-	}
-
 	return m, nil
 }
 
@@ -801,11 +800,17 @@ func (m *model) updateViewport() {
 
 		if isSent {
 			bubble := sentBubbleStyle.Render(wrapped)
+			sb.WriteString(bubble + "\n")
+			sb.WriteString(ts + "\n")
+		} else {
+			senderName := contactNameStyle.Bold(true).Render(m.displayName(msg.sender))
+			bubble := recvBubbleStyle.Render(wrapped)
 			bubbleW := lipgloss.Width(bubble)
 			pad := chatW - bubbleW
 			if pad < 0 {
 				pad = 0
 			}
+			sb.WriteString(strings.Repeat(" ", pad) + senderName + "\n")
 			sb.WriteString(strings.Repeat(" ", pad) + bubble + "\n")
 			tsW := lipgloss.Width(ts)
 			tsPad := chatW - tsW
@@ -813,12 +818,6 @@ func (m *model) updateViewport() {
 				tsPad = 0
 			}
 			sb.WriteString(strings.Repeat(" ", tsPad) + ts + "\n")
-		} else {
-			senderName := contactNameStyle.Bold(true).Render(m.displayName(msg.sender))
-			sb.WriteString(senderName + "\n")
-			bubble := recvBubbleStyle.Render(wrapped)
-			sb.WriteString(bubble + "\n")
-			sb.WriteString(ts + "\n")
 		}
 		sb.WriteString("\n")
 	}
@@ -1024,7 +1023,7 @@ func (m model) View() string {
 			"  Enter      Confirm",
 			"  Esc        Cancel",
 			"",
-			headerDimStyle.Render("Press ? or Esc to close"),
+			headerDimStyle.Render("Press q or Esc to close"),
 		}, "\n")
 
 		helpW := 36
@@ -1063,7 +1062,7 @@ func (m model) View() string {
 			fmt.Sprintf("  Peers: %d", len(m.contacts)),
 			fmt.Sprintf("  Messages: %d  (sent %d / recv %d)", len(m.messages), sent, recv),
 			"",
-			headerDimStyle.Render("Press i or Esc to close"),
+			headerDimStyle.Render("Press q or Esc to close"),
 		}, "\n")
 
 		infoW := 50

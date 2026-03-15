@@ -22,6 +22,9 @@ const (
 	CommandTypeAddPeer
 	CommandTypeAddPeerAck
 	CommandTypeAddPeerNac
+	CommandTypeRemovePeer
+	CommandTypeRemovePeerAck
+	CommandTypeRemovePeerNac
 )
 
 type MainHeader struct {

@@ -19,6 +19,9 @@ const (
 	CommandTypeSendMessageNac
 	CommandTypeListContacts
 	CommandTypeListContactsResponse
+	CommandTypeAddPeer
+	CommandTypeAddPeerAck
+	CommandTypeAddPeerNac
 )
 
 type MainHeader struct {

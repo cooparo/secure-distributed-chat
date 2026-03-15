@@ -33,6 +33,9 @@ var packetTypeName = map[ipcprotocol.CommandType]string{
 	ipcprotocol.CommandTypeSendMessageAck:      "Send Message ACK",
 	ipcprotocol.CommandTypeListContacts:        "List Contacts",
 	ipcprotocol.CommandTypeListContactsResponse: "List Contacts Response",
+	ipcprotocol.CommandTypeAddPeer:             "Add Peer",
+	ipcprotocol.CommandTypeAddPeerAck:          "Add Peer ACK",
+	ipcprotocol.CommandTypeAddPeerNac:          "Add Peer NAC",
 }
 
 type ipcServerpacketHandler func(context.Context, net.Conn, *ServerState) error
@@ -41,6 +44,7 @@ var packetServerHandler = map[ipcprotocol.CommandType]ipcServerpacketHandler{
 	ipcprotocol.CommandTypeMessageRequest: handleServerMessageRequest,
 	ipcprotocol.CommandTypeSendMessage:    handleServerSendMessage,
 	ipcprotocol.CommandTypeListContacts:   handleServerListContacts,
+	ipcprotocol.CommandTypeAddPeer:        handleServerAddPeer,
 }
 
 type ipcClientPacketHandler func(context.Context, net.Conn) error
